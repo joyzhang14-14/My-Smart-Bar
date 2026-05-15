@@ -404,10 +404,9 @@ struct ContentView: View {
                       .fixedSize()
               }
               .zIndex(2)
-            // ⚠️ DEBUG: 暂时禁用 ExtendedLyricsBar 渲染以隔离问题
-            // if shouldShowExtendedLyrics {
-            //     ExtendedLyricsBar()
-            // }
+            if shouldShowExtendedLyrics {
+                ExtendedLyricsBar()
+            }
             if vm.notchState == .open {
                 VStack {
                     switch coordinator.currentView {
@@ -581,62 +580,13 @@ struct ContentView: View {
         let width = vm.closedNotchSize.width + 2 * max(0, vm.closedNotchSize.height - 12) + 20 - 10
         let height = vm.closedNotchSize.height
 
-        TimelineView(.animation(minimumInterval: 0.25)) { timeline in
-            let currentElapsed: Double = {
-                guard musicManager.isPlaying else { return musicManager.elapsedTime }
-                let delta = timeline.date.timeIntervalSince(musicManager.timestampDate)
-                let progressed = musicManager.elapsedTime + (delta * musicManager.playbackRate)
-                return min(max(progressed, 0), musicManager.songDuration)
-            }()
-            let line: String = {
-                if !musicManager.syncedLyrics.isEmpty {
-                    return musicManager.lyricLine(at: currentElapsed)
-                }
-                return musicManager.currentLyrics
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .replacingOccurrences(of: "\n", with: " ")
-            }()
-
-            ZStack(alignment: .center) {
-                if !line.isEmpty {
-                    // 用户在 Settings → Appearance → "Lyrics alignment" 选风格：
-                    //   - leftMarquee: MarqueeText 左对齐 + 跑马灯（原行为）
-                    //   - center: Text 居中 + 截断
-                    Group {
-                        switch extendedLyricsAlignment {
-                        case .leftMarquee:
-                            MarqueeText(
-                                .constant(line),
-                                font: .subheadline,
-                                nsFont: .subheadline,
-                                textColor: .gray,
-                                frameWidth: width
-                            )
-                            .font(.subheadline)
-                            .lineLimit(1)
-                        case .center:
-                            Text(line)
-                                .font(.subheadline)
-                                .foregroundStyle(.gray)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: width, alignment: .center)
-                        }
-                    }
-                    .id(line)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .bottom).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    ))
-                }
-            }
-            .frame(width: width, height: height, alignment: .center)
-            .clipped()
-            .animation(.easeOut(duration: 0.25), value: line)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .allowsHitTesting(false)
+        // 用独立 struct 才能持有 @State + Timer.publish。
+        // 不用 TimelineView 是因为它的高频重算会让外层 mainLayout 被撑大（已确认 root cause）。
+        ExtendedLyricsBarBody(
+            width: width,
+            height: height,
+            musicManager: musicManager
+        )
     }
 
     @ViewBuilder
@@ -919,6 +869,87 @@ struct TopHoverShape: Shape {
     func path(in rect: CGRect) -> Path {
         let h = max(0, min(height, rect.height))
         return Path(CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: h))
+    }
+}
+
+// 闭合 notch 下方常驻歌词条的内部实现。
+// 不用 TimelineView（会触发外层 mainLayout 被撑大的 SwiftUI bug）；
+// 用 Timer.publish + onReceive + @State 来每 0.25s 更新当前歌词行。
+struct ExtendedLyricsBarBody: View {
+    let width: CGFloat
+    let height: CGFloat
+    @ObservedObject var musicManager: MusicManager
+    @Default(.extendedLyricsAlignment) private var alignmentMode
+
+    @State private var currentLine: String = ""
+
+    private let refreshTimer = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack(alignment: .center) {
+            if !currentLine.isEmpty {
+                Group {
+                    switch alignmentMode {
+                    case .leftMarquee:
+                        MarqueeText(
+                            .constant(currentLine),
+                            font: .subheadline,
+                            nsFont: .subheadline,
+                            textColor: .gray,
+                            frameWidth: width
+                        )
+                        .font(.subheadline)
+                        .lineLimit(1)
+                    case .center:
+                        Text(currentLine)
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: width, alignment: .center)
+                    }
+                }
+                .id(currentLine)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                    removal: .move(edge: .top).combined(with: .opacity)
+                ))
+            }
+        }
+        .frame(width: width, height: height, alignment: .center)
+        .clipped()
+        .animation(.easeOut(duration: 0.25), value: currentLine)
+        .allowsHitTesting(false)
+        .onAppear { recompute() }
+        .onReceive(refreshTimer) { _ in recompute() }
+        .onChange(of: musicManager.currentLyrics) { _, _ in recompute() }
+        .onChange(of: musicManager.syncedLyrics.count) { _, _ in recompute() }
+        .onChange(of: musicManager.isPlaying) { _, _ in recompute() }
+    }
+
+    private func recompute() {
+        let elapsed: Double
+        if musicManager.isPlaying {
+            let delta = Date().timeIntervalSince(musicManager.timestampDate)
+            elapsed = min(
+                max(musicManager.elapsedTime + delta * musicManager.playbackRate, 0),
+                musicManager.songDuration
+            )
+        } else {
+            elapsed = musicManager.elapsedTime
+        }
+        let newLine: String
+        if !musicManager.syncedLyrics.isEmpty {
+            newLine = musicManager.lyricLine(at: elapsed)
+        } else {
+            newLine = musicManager.currentLyrics
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\n", with: " ")
+        }
+        if newLine != currentLine {
+            currentLine = newLine
+        }
     }
 }
 
