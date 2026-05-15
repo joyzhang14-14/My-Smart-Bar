@@ -117,28 +117,41 @@ enum NetEaseLyricsClient {
         for song in songs {
             guard let id = song["id"] as? Int else { continue }
             let songName = (song["name"] as? String) ?? ""
-            // 优先 cloudsearch/pc 的 ar 字段；老 search/get 会回 artists
-            let arNames: [String] = {
-                if let ar = song["ar"] as? [[String: Any]] {
-                    return ar.compactMap { $0["name"] as? String }
-                }
-                if let artists = song["artists"] as? [[String: Any]] {
-                    return artists.compactMap { $0["name"] as? String }
-                }
-                return []
+            // 歌名的所有可比较变体：主名 + tns（翻译/别名，比如英文版）+ alia（备选名，比如带 (Live) 后缀的）
+            let songNameVariants: [String] = {
+                var all: [String] = [songName]
+                if let tns = song["tns"] as? [String] { all.append(contentsOf: tns) }
+                if let alia = song["alia"] as? [String] { all.append(contentsOf: alia) }
+                return all.map { normalizeForMatch($0) }.filter { !$0.isEmpty }
             }()
-            let normalizedSongName = normalizeForMatch(songName)
-            let normalizedSongArtists = arNames.map { normalizeForMatch($0) }
+
+            // 艺人列表：优先 cloudsearch/pc 的 ar；老 search/get 回 artists。
+            // 每个艺人除了 name 还可能有 tns（如 周杰伦.tns = ["Jay Chou"]），统一拍平后比对。
+            let artistNameVariants: [[String]] = {
+                let raw = (song["ar"] as? [[String: Any]])
+                    ?? (song["artists"] as? [[String: Any]])
+                    ?? []
+                return raw.map { entry -> [String] in
+                    var names: [String] = []
+                    if let n = entry["name"] as? String { names.append(n) }
+                    if let tns = entry["tns"] as? [String] { names.append(contentsOf: tns) }
+                    if let alias = entry["alias"] as? [String] { names.append(contentsOf: alias) }
+                    return names.map { normalizeForMatch($0) }.filter { !$0.isEmpty }
+                }
+            }()
 
             var score = 0
+            // title 命中：用户标题在任一变体里出现，或反过来
             if !normalizedTitle.isEmpty,
-               normalizedSongName.contains(normalizedTitle) || normalizedTitle.contains(normalizedSongName) {
+               songNameVariants.contains(where: { $0.contains(normalizedTitle) || normalizedTitle.contains($0) }) {
                 score += 10
             }
+            // 每个用户艺人：在任一艺人的任一名字变体里出现 +1
             for ua in userArtists where !ua.isEmpty {
-                if normalizedSongArtists.contains(where: { $0.contains(ua) || ua.contains($0) }) {
-                    score += 1
+                let matched = artistNameVariants.contains { variants in
+                    variants.contains { $0.contains(ua) || ua.contains($0) }
                 }
+                if matched { score += 1 }
             }
             // 时长匹配：dt 字段是毫秒整数
             if durationSeconds > 0, let dt = song["dt"] as? Int {
@@ -149,7 +162,9 @@ enum NetEaseLyricsClient {
             }
 
             if best == nil || score > best!.score {
-                best = (id, score, songName, arNames.joined(separator: ", "))
+                // 日志里只显示主名，方便排查
+                let primaryArtists = artistNameVariants.compactMap { $0.first }.joined(separator: ", ")
+                best = (id, score, songName, primaryArtists)
             }
         }
 
