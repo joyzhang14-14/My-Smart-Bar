@@ -390,19 +390,29 @@ class MusicManager: ObservableObject {
         if lastLyricsFetchKey == key && (alreadyHasLyrics || isFetchingLyrics) {
             return
         }
+
+        // 切歌：立刻清掉旧歌的 syncedLyrics / currentLyrics，否则新歌 fetch 还没回来时，
+        // UI 会拿新歌的 elapsed 去查上一首歌的 syncedLyrics，看起来就像"歌词卡在上首歌"。
+        let isNewTrack = lastLyricsFetchKey != key
+        if isNewTrack {
+            self.syncedLyrics = []
+            self.currentLyrics = ""
+        }
         lastLyricsFetchKey = key
+        // 快速连切（A→B→C）时 B 和 C 的 fetch 会同时在飞。每个 task 捕获自己出发时的 key，
+        // 写入 state 之前先确认 lastLyricsFetchKey 还等于自己的 expectedKey；不等就丢结果。
+        let expectedKey = key
 
         // Prefer native Apple Music lyrics when available
         if let bundleIdentifier = bundleIdentifier, bundleIdentifier.contains("com.apple.Music") {
             Task { @MainActor in
                 let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music")
                 guard !runningApps.isEmpty else {
-                    await self.fetchLyricsFromWeb(title: title, artist: artist)
+                    await self.fetchLyricsFromWeb(title: title, artist: artist, expectedKey: expectedKey)
                     return
                 }
 
                 self.isFetchingLyrics = true
-                self.currentLyrics = ""
                 do {
                     let script = """
                     tell application \"Music\"
@@ -427,6 +437,7 @@ class MusicManager: ObservableObject {
                     end tell
                     """
                     if let result = try await AppleScriptHelper.execute(script), let lyricsString = result.stringValue, !lyricsString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        guard self.lastLyricsFetchKey == expectedKey else { return }
                         self.currentLyrics = lyricsString.trimmingCharacters(in: .whitespacesAndNewlines)
                         self.isFetchingLyrics = false
                         self.syncedLyrics = []
@@ -435,13 +446,12 @@ class MusicManager: ObservableObject {
                 } catch {
                     // fall through to web lookup
                 }
-                await self.fetchLyricsFromWeb(title: title, artist: artist)
+                await self.fetchLyricsFromWeb(title: title, artist: artist, expectedKey: expectedKey)
             }
         } else {
             Task { @MainActor in
                 self.isFetchingLyrics = true
-                self.currentLyrics = ""
-                await self.fetchLyricsFromWeb(title: title, artist: artist)
+                await self.fetchLyricsFromWeb(title: title, artist: artist, expectedKey: expectedKey)
             }
         }
     }
@@ -453,16 +463,18 @@ class MusicManager: ObservableObject {
     }
 
     @MainActor
-    private func fetchLyricsFromWeb(title: String, artist: String) async {
+    private func fetchLyricsFromWeb(title: String, artist: String, expectedKey: String) async {
         let cleanTitle = normalizedQuery(title)
         let cleanArtist = normalizedQuery(artist)
 
         // 严格模式：每一家都必须能给出 ≥2 行带时间戳的同步歌词才算"成功"，
         // 否则继续 fallback。无时间戳的 plain 文本一律不显示。
+        // expectedKey 用于竞态保护：连切歌时多个 fetch 同时在飞，只有还跟 lastLyricsFetchKey
+        // 匹配的那个 task 才能写入 state；落后的 task 一律丢弃。
 
         // 1) 主源：LRCLIB（无需鉴权、稳定）。
         if let result = await fetchFromLRCLIB(title: cleanTitle, artist: cleanArtist),
-           applyLyricsResult(plain: result.plain, synced: result.synced) {
+           applyLyricsResult(plain: result.plain, synced: result.synced, expectedKey: expectedKey) {
             return
         }
 
@@ -471,7 +483,7 @@ class MusicManager: ObservableObject {
             title: cleanTitle,
             artist: cleanArtist,
             durationSeconds: self.songDuration
-        ), applyLyricsResult(plain: result.plain, synced: result.synced) {
+        ), applyLyricsResult(plain: result.plain, synced: result.synced, expectedKey: expectedKey) {
             return
         }
 
@@ -480,24 +492,30 @@ class MusicManager: ObservableObject {
             title: cleanTitle,
             artist: cleanArtist,
             durationSeconds: self.songDuration
-        ), applyLyricsResult(plain: result.plain, synced: result.synced) {
+        ), applyLyricsResult(plain: result.plain, synced: result.synced, expectedKey: expectedKey) {
             return
         }
 
-        // 全部失败：清空。
+        // 全部失败：清空。但只在自己仍是当前活跃 fetch 时才动 state，否则就是"过气" task，丢弃。
+        guard self.lastLyricsFetchKey == expectedKey else { return }
         NSLog("[Lyrics] no usable synced lyrics for \"\(cleanTitle)\" - \"\(cleanArtist)\" (lrclib + qq + netease all rejected)")
         self.currentLyrics = ""
         self.syncedLyrics = []
         self.isFetchingLyrics = false
     }
 
-    /// 接受/拒绝一个抓取结果。返回 true 表示已写入 state（caller 应停止 fallback）；
+    /// 接受/拒绝一个抓取结果。返回 true 表示已处理（caller 应停止 fallback）；
     /// 返回 false 表示这家给的不是有效同步歌词（caller 应继续走下一家）。
     /// 严格模式下必须解析出 ≥2 行带时间戳的同步歌词；plain（无时间戳）一律不接受——
     /// 之前 plain 兜底体验差（整段 \n→空格 当一行跑马灯滚），还容易让仅 1 行的伪 LRC
     /// 卡在第一句不动。
+    /// 竞态保护：如果当前 lastLyricsFetchKey 已经不是发起 fetch 时的 expectedKey
+    /// （说明用户已经切到下一首），直接丢结果且返回 true 让 caller 停止后续 fallback。
     @MainActor
-    private func applyLyricsResult(plain: String, synced: String) -> Bool {
+    private func applyLyricsResult(plain: String, synced: String, expectedKey: String) -> Bool {
+        guard self.lastLyricsFetchKey == expectedKey else {
+            return true
+        }
         let lines = synced.isEmpty ? [] : self.parseLRC(synced)
         guard lines.count >= 2 else {
             return false
