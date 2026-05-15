@@ -23,9 +23,9 @@
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://TheBoredTeam.github.io/boring.notch/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/joyzhang14-14/My-Smart-Bar/main/updater/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>B1Y47t8C/v8ImurYA+9arEsuCrpxwJSviekiflMElbI=</string>
+	<string>r40y799hLosIZZpq47T953f24ElEj5ou0BEdPN0lMCM=</string>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict/>
