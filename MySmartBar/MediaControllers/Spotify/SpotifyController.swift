@@ -124,26 +124,40 @@ final class SpotifyController: MediaControllerProtocol {
         await updatePlaybackInfo()
     }
 
-    // 三态循环：off → all (context) → one (track) → off
+    // Web API 健康时三态循环：off → all (context) → one (track) → off
+    // Web API 不可用（无 token / 限流中）时退化两态：off ↔ all
+    // 否则 cached state 永远卡在 .all（AppleScript 读不出 .one），点击会"无反应"。
     func toggleRepeat() async {
+        let threeState = await canUseWebApiForRepeat()
         let next: RepeatMode
-        switch playbackState.repeatMode {
-        case .off: next = .all
-        case .all: next = .one
-        case .one: next = .off
+        if threeState {
+            switch playbackState.repeatMode {
+            case .off: next = .all
+            case .all: next = .one
+            case .one: next = .off
+            }
+        } else {
+            next = (playbackState.repeatMode == .off) ? .all : .off
         }
-        NSLog("[Spotify] toggleRepeat invoked: %@ -> %@",
+        NSLog("[Spotify] toggleRepeat invoked: %@ -> %@ (cycle=%@)",
               String(describing: playbackState.repeatMode),
-              String(describing: next))
+              String(describing: next),
+              threeState ? "3-state" : "2-state")
         let provider = await stateProvider()
         let ok = await provider.setRepeatMode(next)
-        // Web API 写失败（通常是 404 No Active Device）→ 走 AppleScript（只支持 bool repeat）
+        // Web API 写失败（404 No Active Device / 429 限流）→ 走 AppleScript（只支持 bool repeat）
         if !ok, provider !== appleScriptProvider {
             NSLog("[Spotify] toggleRepeat fell back to AppleScript (bool repeat only)")
             _ = await appleScriptProvider.setRepeatMode(next)
         }
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
+    }
+
+    private func canUseWebApiForRepeat() async -> Bool {
+        guard let webApi = webApiProvider as? SpotifyWebApiProvider else { return false }
+        guard await hasNetworkAccess() else { return false }
+        return !webApi.isRateLimited
     }
 
     func setVolume(_ level: Double) async {

@@ -23,6 +23,10 @@ final class SpotifyWebApiProvider: SpotifyProvider {
 
     let supportsFavorite: Bool = true
 
+    // 给 SpotifyController 用：当前是否还在 429 冷却里。冷却中三态 repeat 必定失败，
+    // controller 借此决定 repeat cycle 用三态还是两态
+    var isRateLimited: Bool { currentCooldown() != nil }
+
     func getPlayerState() async -> SpotifyPlayerState {
         guard let response: SpotifyPlaybackStateResponse = await request("/v1/me/player") else {
             return SpotifyPlayerState()
