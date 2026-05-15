@@ -18,9 +18,8 @@ enum NetEaseLyricsClient {
     /// synced 已经过 normalizeNetEaseLRC 转换成纯净的 `[mm:ss.xx]Line` 标准 LRC，
     /// 调用方（MusicManager.parseLRC）可以按统一的标准格式处理，不需要懂 NetEase 方言。
     static func fetchLyrics(title: String, artist: String) async -> (plain: String, synced: String)? {
-        let query = artist.isEmpty ? title : "\(title) \(artist)"
-        guard let songID = await searchSongID(query: query) else {
-            NSLog("[Lyrics][NetEase native] no song match for \"\(query)\"")
+        guard let songID = await searchSongID(title: title, artist: artist) else {
+            NSLog("[Lyrics][NetEase native] no song match for \"\(title)\" - \"\(artist)\"")
             return nil
         }
         guard let raw = await fetchLRC(songID: songID) else {
@@ -76,13 +75,14 @@ enum NetEaseLyricsClient {
 
     // MARK: - Endpoints
 
-    private static func searchSongID(query: String) async -> Int? {
+    private static func searchSongID(title: String, artist: String) async -> Int? {
         // 用新版 cloudsearch/pc 端点，不是老的 search/get / cloudsearch/get/web。
         // 老端点对未登录请求会返回 code:50000005（反爬）。
+        let query = artist.isEmpty ? title : "\(title) \(artist)"
         let body: [String: Any] = [
             "s": query,
             "type": 1,
-            "limit": 1,
+            "limit": 10,         // 多取几条，下面按 artist + title 打分挑最准的一条
             "offset": 0,
             "total": true,
             "csrf_token": ""
@@ -93,11 +93,68 @@ enum NetEaseLyricsClient {
         }
         guard let result = resp["result"] as? [String: Any],
               let songs = result["songs"] as? [[String: Any]],
-              let first = songs.first,
-              let id = first["id"] as? Int else {
+              !songs.isEmpty else {
             return nil
         }
-        return id
+        return pickBestMatch(from: songs, title: title, artist: artist)
+    }
+
+    /// 在 NetEase 返回的多条候选里挑最匹配的一首。
+    /// 打分：歌名包含/被包含 +10；用户指定的每个艺人在结果艺人列表里能找到 +1。
+    /// 全 0 分时（极少见）退化为第一条，免得无歌词。
+    private static func pickBestMatch(from songs: [[String: Any]], title: String, artist: String) -> Int? {
+        let normalizedTitle = normalizeForMatch(title)
+        // "Lady Gaga, Bruno Mars" → ["lady gaga", "bruno mars"]
+        let userArtists = artist
+            .split(whereSeparator: { $0 == "," || $0 == "&" || $0 == "/" })
+            .map { normalizeForMatch(String($0)) }
+            .filter { !$0.isEmpty }
+
+        var best: (id: Int, score: Int, name: String, artists: String)? = nil
+        for song in songs {
+            guard let id = song["id"] as? Int else { continue }
+            let songName = (song["name"] as? String) ?? ""
+            // 优先 cloudsearch/pc 的 ar 字段；老 search/get 会回 artists
+            let arNames: [String] = {
+                if let ar = song["ar"] as? [[String: Any]] {
+                    return ar.compactMap { $0["name"] as? String }
+                }
+                if let artists = song["artists"] as? [[String: Any]] {
+                    return artists.compactMap { $0["name"] as? String }
+                }
+                return []
+            }()
+            let normalizedSongName = normalizeForMatch(songName)
+            let normalizedSongArtists = arNames.map { normalizeForMatch($0) }
+
+            var score = 0
+            if !normalizedTitle.isEmpty,
+               normalizedSongName.contains(normalizedTitle) || normalizedTitle.contains(normalizedSongName) {
+                score += 10
+            }
+            for ua in userArtists where !ua.isEmpty {
+                if normalizedSongArtists.contains(where: { $0.contains(ua) || ua.contains($0) }) {
+                    score += 1
+                }
+            }
+
+            if best == nil || score > best!.score {
+                best = (id, score, songName, arNames.joined(separator: ", "))
+            }
+        }
+
+        if let best = best {
+            NSLog("[Lyrics][NetEase native] picked id=\(best.id) score=\(best.score) — \"\(best.name)\" by \"\(best.artists)\"")
+            return best.id
+        }
+        // 兜底：全部解析失败时返回第一条 id
+        return (songs.first?["id"]) as? Int
+    }
+
+    private static func normalizeForMatch(_ s: String) -> String {
+        s.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .folding(options: .diacriticInsensitive, locale: .current)
     }
 
     private static func fetchLRC(songID: Int) async -> String? {
