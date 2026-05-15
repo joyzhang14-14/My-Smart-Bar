@@ -63,7 +63,10 @@ final class SpotifyKeychainManager {
             kSecValueData: data
         ]
         SecItemDelete(query as CFDictionary)
-        SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        if status != errSecSuccess {
+            NSLog("[Spotify] keychain SAVE failed key=%@ status=%d", key, Int(status))
+        }
     }
 
     private func read(key: String) -> String? {
@@ -74,8 +77,13 @@ final class SpotifyKeychainManager {
             kSecMatchLimit: kSecMatchLimitOne
         ]
         var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        if status != errSecSuccess {
+            NSLog("[Spotify] keychain READ failed key=%@ status=%d", key, Int(status))
+            return nil
+        }
+        guard let data = result as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
 

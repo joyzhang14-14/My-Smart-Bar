@@ -86,7 +86,12 @@ final class SpotifyController: MediaControllerProtocol {
     // 其余播放控制（play/pause/next/previous/seek/volume）始终走 AppleScript，本地即时，不依赖网络。
 
     func setFavorite(_ favorite: Bool) async {
-        guard let trackID = await currentTrackIDForFavoriteAction() else { return }
+        NSLog("[Spotify] setFavorite(%@) invoked", favorite ? "true" : "false")
+        guard let trackID = await currentTrackIDForFavoriteAction() else {
+            NSLog("[Spotify] setFavorite aborted: no track ID")
+            return
+        }
+        NSLog("[Spotify] setFavorite trackID=%@", trackID)
         await stateProvider().setLiked(favorite, id: trackID)
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
@@ -110,7 +115,11 @@ final class SpotifyController: MediaControllerProtocol {
     }
 
     func toggleShuffle() async {
-        await stateProvider().setShuffle(!playbackState.isShuffled)
+        let target = !playbackState.isShuffled
+        NSLog("[Spotify] toggleShuffle invoked: %@ -> %@",
+              playbackState.isShuffled ? "on" : "off",
+              target ? "on" : "off")
+        await stateProvider().setShuffle(target)
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
@@ -123,6 +132,9 @@ final class SpotifyController: MediaControllerProtocol {
         case .all: next = .one
         case .one: next = .off
         }
+        NSLog("[Spotify] toggleRepeat invoked: %@ -> %@",
+              String(describing: playbackState.repeatMode),
+              String(describing: next))
         await stateProvider().setRepeatMode(next)
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
