@@ -740,8 +740,17 @@ private struct SpotifyAuthSection: View {
                 if auth.isAuthorized {
                     Button("Sign Out") { auth.signOut() }
                 } else {
-                    Button("Login with Spotify") { auth.startAuthFlow() }
-                        .disabled(!auth.hasConfiguredCredentials)
+                    // 直接用本地 view state 判断 disabled，避免依赖 keychain/UserDefaults
+                    // 写入时序——用户输入立刻反映到按钮上。点击时 startAuthFlow 内部还会
+                    // 再次校验 keychain 实际状态。
+                    let clientIDFilled = !clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    let clientSecretFilled = !clientSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    Button("Login with Spotify") {
+                        // 保险起见，点之前同步一次 secret 到存储
+                        auth.updateClientSecret(clientSecret)
+                        auth.startAuthFlow()
+                    }
+                    .disabled(!(clientIDFilled && clientSecretFilled))
                 }
             }
         } header: {
