@@ -601,7 +601,6 @@ struct Media: View {
     @Default(.sneakPeekStyles) var sneakPeekStyles
 
     @Default(.enableLyrics) var enableLyrics
-    @Default(.neteaseAPIBaseURL) var neteaseAPIBaseURL
 
     var body: some View {
         Form {
@@ -691,23 +690,6 @@ struct Media: View {
                 Text("Media controls")
             }  footer: {
                 Text("Customize which controls appear in the music player. Volume expands when active.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                HStack {
-                    Text("Custom NetEase API URL")
-                    Spacer(minLength: 16)
-                    TextField("Leave blank for built-in", text: $neteaseAPIBaseURL)
-                        .textFieldStyle(.roundedBorder)
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 300)
-                }
-            } header: {
-                Text("Lyrics fallback")
-            } footer: {
-                Text("Used when LRCLIB fails. Leaving this blank uses the built-in NetEase weapi client (zero setup, recommended). Or point it at your own self-hosted api-enhanced server (e.g. `http://localhost:3000`).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

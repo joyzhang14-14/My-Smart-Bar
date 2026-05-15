@@ -435,15 +435,8 @@ class MusicManager: ObservableObject {
             return
         }
 
-        // 2) Fallback：NetEase。优先用用户配置的自部署 server；没配则走 app 内置 weapi 原生客户端。
-        let neteaseURL = Defaults[.neteaseAPIBaseURL].trimmingCharacters(in: .whitespaces)
-        let neteaseResult: (plain: String, synced: String)?
-        if neteaseURL.isEmpty {
-            neteaseResult = await NetEaseLyricsClient.fetchLyrics(title: cleanTitle, artist: cleanArtist)
-        } else {
-            neteaseResult = await fetchFromNetEase(baseURL: neteaseURL, title: cleanTitle, artist: cleanArtist)
-        }
-        if let result = neteaseResult {
+        // 2) Fallback：app 内置的 NetEase weapi 原生客户端。
+        if let result = await NetEaseLyricsClient.fetchLyrics(title: cleanTitle, artist: cleanArtist) {
             applyLyricsResult(plain: result.plain, synced: result.synced)
             return
         }
@@ -492,54 +485,6 @@ class MusicManager: ObservableObject {
         }
     }
 
-    private func fetchFromNetEase(baseURL: String, title: String, artist: String) async -> (plain: String, synced: String)? {
-        let trimmedBase = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
-        let query = artist.isEmpty ? title : "\(title) \(artist)"
-        guard let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let searchURL = URL(string: "\(trimmedBase)/search?keywords=\(encoded)&type=1&limit=1") else {
-            return nil
-        }
-        do {
-            let (searchData, searchResp) = try await URLSession.shared.data(from: searchURL)
-            guard let searchHTTP = searchResp as? HTTPURLResponse, searchHTTP.statusCode == 200 else {
-                NSLog("[Lyrics] NetEase search non-200: \((searchResp as? HTTPURLResponse)?.statusCode ?? -1)")
-                return nil
-            }
-            guard let json = try JSONSerialization.jsonObject(with: searchData) as? [String: Any],
-                  let result = json["result"] as? [String: Any],
-                  let songs = result["songs"] as? [[String: Any]],
-                  let firstSong = songs.first,
-                  let songID = firstSong["id"] as? Int else {
-                NSLog("[Lyrics] NetEase search returned no songs")
-                return nil
-            }
-            guard let lyricURL = URL(string: "\(trimmedBase)/lyric?id=\(songID)") else { return nil }
-            let (lyricData, lyricResp) = try await URLSession.shared.data(from: lyricURL)
-            guard let lyricHTTP = lyricResp as? HTTPURLResponse, lyricHTTP.statusCode == 200 else {
-                NSLog("[Lyrics] NetEase lyric non-200: \((lyricResp as? HTTPURLResponse)?.statusCode ?? -1)")
-                return nil
-            }
-            guard let lyricJSON = try JSONSerialization.jsonObject(with: lyricData) as? [String: Any] else {
-                return nil
-            }
-            let lrcContainer = lyricJSON["lrc"] as? [String: Any]
-            let lrc = (lrcContainer?["lyric"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if lrc.isEmpty {
-                NSLog("[Lyrics] NetEase lyric: empty lrc.lyric")
-                return nil
-            }
-            // 自部署 api-enhanced 返回的 lrc 也是 NetEase 方言，走和原生客户端同一个
-            // normalizer 转成标准 LRC，再生成 plain 兜底。
-            let normalized = NetEaseLyricsClient.normalizeNetEaseLRC(lrc)
-            if normalized.isEmpty { return nil }
-            let plain = stripLRCTimestamps(normalized)
-            return (plain: plain, synced: normalized)
-        } catch {
-            NSLog("[Lyrics] NetEase error: \(error.localizedDescription)")
-            return nil
-        }
-    }
-
     // MARK: - Synced lyrics helpers
     // 标准 LRC 行解析：[mm:ss(.xx)]text。这一份只认标准格式，专门服务 lrclib。
     // NetEase 的方言（3 位毫秒、[-N] 元数据等）已在 NetEaseLyricsClient.normalizeNetEaseLRC
@@ -568,24 +513,6 @@ class MusicManager: ObservableObject {
             }
         }
         return result.sorted { $0.0 < $1.0 }
-    }
-
-    // 剥掉标准 [mm:ss.xx] 时间戳。输入应该是已经 normalize 过的纯净标准 LRC。
-    private func stripLRCTimestamps(_ lrc: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: #"\[\d{1,2}:\d{2}(?:\.\d{1,2})?\]"#) else {
-            return lrc
-        }
-        let ns = lrc as NSString
-        let stripped = regex.stringByReplacingMatches(
-            in: lrc,
-            range: NSRange(location: 0, length: ns.length),
-            withTemplate: ""
-        )
-        return stripped
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
     }
 
     func lyricLine(at elapsed: Double) -> String {

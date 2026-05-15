@@ -151,10 +151,6 @@ extension Defaults.Keys {
     static let showShuffleAndRepeat = Key<Bool>("showShuffleAndRepeat", default: false)
     static let enableLyrics = Key<Bool>("enableLyrics", default: false)
     static let extendedLyricsShowcase = Key<Bool>("extendedLyricsShowcase", default: false)
-    // NetEase Cloud Music API (api-enhanced) 自部署 base URL，可选。
-    // 留空 = 走 app 内置的 NetEase weapi 原生客户端（推荐，零部署）。
-    // 填写 = 走指定的 api-enhanced server（http://localhost:3000 之类）。
-    static let neteaseAPIBaseURL = Key<String>("neteaseAPIBaseURL", default: "")
     static let musicControlSlots = Key<[MusicControlButton]>(
         "musicControlSlots",
         default: MusicControlButton.defaultLayout
