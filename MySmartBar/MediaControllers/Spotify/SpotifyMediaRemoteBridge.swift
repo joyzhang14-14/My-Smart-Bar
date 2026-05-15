@@ -41,13 +41,24 @@ final class SpotifyMediaRemoteBridge {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
         process.arguments = [scriptPath, frameworkPath, command, value]
-        // 静默掉 stdout/stderr，避免每次 click 都在 console 打 adapter 内部日志
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
         do {
             try process.run()
+            // 等子进程结束以便记录 exit code / stderr —— 操作频次低，几十 ms 阻塞可接受
+            process.waitUntilExit()
+            let exitCode = process.terminationStatus
+            if exitCode != 0 {
+                let stderr = String(data: stderrPipe.fileHandleForReading.availableData, encoding: .utf8) ?? ""
+                NSLog("[Spotify] MediaRemote adapter %@ %@ exit=%d stderr=%@",
+                      command, value, exitCode, stderr)
+            } else {
+                NSLog("[Spotify] MediaRemote adapter %@ %@ ok", command, value)
+            }
         } catch {
-            NSLog("[Spotify] MediaRemote adapter run failed: \(error.localizedDescription)")
+            NSLog("[Spotify] MediaRemote adapter launch failed: \(error.localizedDescription)")
         }
     }
 }
