@@ -65,15 +65,13 @@ final class SpotifyAppleScriptProvider: SpotifyProvider {
         await executeCommand("set sound volume to \(max(0, min(100, volume)))")
     }
 
-    func setShuffle(_ enabled: Bool) async -> Bool {
+    func setShuffle(_ enabled: Bool) async {
         await executeCommand("set shuffling to \(enabled)")
-        return true
     }
 
-    func setRepeatMode(_ mode: RepeatMode) async -> Bool {
+    func setRepeatMode(_ mode: RepeatMode) async {
         // AppleScript 只支持 bool。.one/.all 都映射为 true（开启 repeat）。
         await executeCommand("set repeating to \(mode == .off ? "false" : "true")")
-        return true
     }
 
     func isTrackLiked(id: String) async -> Bool { false }

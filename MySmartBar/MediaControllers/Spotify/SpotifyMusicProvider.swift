@@ -3,7 +3,7 @@
 //  boringNotch
 //
 
-protocol SpotifyProvider: AnyObject {
+protocol SpotifyProvider {
     var supportsFavorite: Bool { get }
 
     func getPlayerState() async -> SpotifyPlayerState
@@ -14,10 +14,9 @@ protocol SpotifyProvider: AnyObject {
     func previousTrack() async
     func seek(to time: Double) async
     func setVolume(_ volume: Int) async
-    // 写命令返回是否生效：Web API 在没有 active device 时返 404，需要让上层兜底
-    func setShuffle(_ enabled: Bool) async -> Bool
-    // 三态 repeat：.off / .all (Spotify context) / .one (Spotify track)
-    func setRepeatMode(_ mode: RepeatMode) async -> Bool
+    func setShuffle(_ enabled: Bool) async
+    // 三态 repeat：.off / .all / .one；AppleScript 只能 bool 化（.one 实际落到 .all）
+    func setRepeatMode(_ mode: RepeatMode) async
     func isTrackLiked(id: String) async -> Bool
     func setLiked(_ liked: Bool, id: String) async
 }

@@ -85,17 +85,6 @@ class MusicManager: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // Spotify 授权变化时刷新 Favorite 支持状态——否则用户登录后 Like 按钮仍然 disabled
-        NotificationCenter.default.publisher(for: Notification.Name.spotifyAuthorizationChanged)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                Task { @MainActor in
-                    self.canFavoriteTrack = self.activeController?.supportsFavorite ?? false
-                    await self.activeController?.updatePlaybackInfo()
-                }
-            }
-            .store(in: &cancellables)
-
         // Initialize deprecation check asynchronously
         Task { @MainActor in
             do {

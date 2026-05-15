@@ -2,9 +2,10 @@
 //  SpotifyController.swift
 //  boringNotch
 //
-//  Spotify 控制器：协调 WebAPI 与 AppleScript 两套 provider。
-//  有有效 access token 时走 Web API（支持 Like + 三态 Repeat），
-//  否则降级到 AppleScript（不支持 Like、Repeat 退化为 bool）。
+//  Spotify 控制器：基于 Spotify 桌面 App 的 AppleScript 字典完成所有读写。
+//  Web API 集成已移除（限流麻烦、且单曲循环也无法可靠生效）。
+//  三态 repeat 在 UI 上以"用户意图"形式保留——AppleScript bool 只能表达 off/on，
+//  .one 写到 Spotify 端实际等同 .all。
 //
 
 import Foundation
@@ -13,8 +14,6 @@ import SwiftUI
 
 final class SpotifyController: MediaControllerProtocol {
 
-    typealias NetworkAccessEvaluator = @Sendable () async -> Bool
-
     @Published private var playbackState = PlaybackState(bundleIdentifier: "com.spotify.client")
 
     var playbackStatePublisher: AnyPublisher<PlaybackState, Never> {
@@ -22,14 +21,9 @@ final class SpotifyController: MediaControllerProtocol {
     }
 
     var supportsVolumeControl: Bool { true }
+    var supportsFavorite: Bool { true }  // 走 AppleScript like track（add-only）
 
-    // Like 通过 AppleScript like track 命令实现（add only），不依赖 Web API token，
-    // 因此 Spotify 模式下始终支持。
-    var supportsFavorite: Bool { true }
-
-    private let appleScriptProvider: SpotifyProvider
-    private let webApiProvider: SpotifyProvider?
-    private let hasNetworkAccess: NetworkAccessEvaluator
+    private let provider: SpotifyProvider
 
     private var notificationTask: Task<Void, Never>?
     private var pollingTask: Task<Void, Never>?
@@ -40,27 +34,11 @@ final class SpotifyController: MediaControllerProtocol {
 
     @MainActor
     convenience init() {
-        self.init(
-            appleScriptProvider: SpotifyAppleScriptProvider(),
-            webApiProvider: SpotifyWebApiProvider(auth: SpotifyAuthManager.shared),
-            hasNetworkAccess: {
-                // 用户登录过 Web API（keychain 里有 token 或还能 refresh）就视为已配置。
-                // 这一刻不主动 refresh —— Web API 内部 validToken() 会按需 refresh，避免每次
-                // 命令选 provider 时阻塞等待网络。
-                let keychain = SpotifyKeychainManager.shared
-                return keychain.isTokenValid || keychain.refreshToken != nil
-            }
-        )
+        self.init(provider: SpotifyAppleScriptProvider())
     }
 
-    init(
-        appleScriptProvider: SpotifyProvider,
-        webApiProvider: SpotifyProvider?,
-        hasNetworkAccess: @escaping NetworkAccessEvaluator
-    ) {
-        self.appleScriptProvider = appleScriptProvider
-        self.webApiProvider = webApiProvider
-        self.hasNetworkAccess = hasNetworkAccess
+    init(provider: SpotifyProvider) {
+        self.provider = provider
 
         setupPlaybackStateChangeObserver()
         startPolling()
@@ -79,53 +57,39 @@ final class SpotifyController: MediaControllerProtocol {
 
     // MARK: - MediaControllerProtocol
 
-    // 仅 Like / Shuffle / Repeat 三个走 Web API（已登录时），需要修改 Spotify 服务端状态、拿三态/Like 信息。
-    // 其余播放控制（play/pause/next/previous/seek/volume）始终走 AppleScript，本地即时，不依赖网络。
-
     func setFavorite(_ favorite: Bool) async {
-        // 走 AppleScript 而非 Web API：Spotify Development Mode 下 /v1/me/tracks 一律 403
-        // （即使 user-library-modify scope 拿到、user 加入 Users and Access 也不行）。
-        // AppleScript like track 由 Spotify 桌面端处理，会同步到服务端的 Liked Songs。
-        // 因为读不到 is_liked 状态，UI 心形永远显示空心 → 这里也只接受 add（liked=true）。
-        NSLog("[Spotify] setFavorite(%@) via AppleScript", favorite ? "true" : "false")
-        await appleScriptProvider.setLiked(favorite, id: "")
+        // Spotify AppleScript 字典只有 like track（add），没有 unlike → liked=false 是 no-op
+        await provider.setLiked(favorite, id: "")
     }
 
-    func play() async { await appleScriptProvider.play() }
-    func pause() async { await appleScriptProvider.pause() }
-    func togglePlay() async { await appleScriptProvider.togglePlay() }
-    func nextTrack() async { await appleScriptProvider.nextTrack() }
+    func play() async { await provider.play() }
+    func pause() async { await provider.pause() }
+    func togglePlay() async { await provider.togglePlay() }
+    func nextTrack() async { await provider.nextTrack() }
 
     func previousTrack() async {
-        await appleScriptProvider.previousTrack()
+        await provider.previousTrack()
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
 
     func seek(to time: Double) async {
-        await appleScriptProvider.seek(to: time)
+        await provider.seek(to: time)
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
 
     func toggleShuffle() async {
         let target = !playbackState.isShuffled
-        NSLog("[Spotify] toggleShuffle invoked: %@ -> %@",
-              playbackState.isShuffled ? "on" : "off",
-              target ? "on" : "off")
-        // MediaRemote SetShuffleMode 在 macOS 26 上对 Spotify 静默无效（exit 0 但 Spotify 不响应），
-        // AppleScript 是目前唯一稳定的写通道
-        _ = await appleScriptProvider.setShuffle(target)
+        await provider.setShuffle(target)
         playbackState.isShuffled = target
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
 
-    // 三态循环 UI：off → all → one → off
-    // MediaRemote SetRepeatMode 在 macOS 26 上对 Spotify 静默无效（Spotify 不 handle mutation 命令），
-    // 实际写入只能走 AppleScript bool —— .one 在 Spotify 端会落到 .all（与 .all 等效）。
-    // cached repeatMode 视作"用户意图"立即推进，UI 上仍然三态循环；
-    // AppleScript bool 读不会覆盖（见 updatePlaybackInfo 的 readViaAppleScript 分支）。
+    // UI 三态 cycle：off → all → one → off
+    // AppleScript bool 只能 off/on，.one 在 Spotify 端实际落到 .all；
+    // cached repeatMode 当作"用户意图"立即推进，AppleScript 读不会覆盖（见 updatePlaybackInfo）
     func toggleRepeat() async {
         let next: RepeatMode
         switch playbackState.repeatMode {
@@ -133,10 +97,7 @@ final class SpotifyController: MediaControllerProtocol {
         case .all: next = .one
         case .one: next = .off
         }
-        NSLog("[Spotify] toggleRepeat invoked: %@ -> %@",
-              String(describing: playbackState.repeatMode),
-              String(describing: next))
-        _ = await appleScriptProvider.setRepeatMode(next)
+        await provider.setRepeatMode(next)
         playbackState.repeatMode = next
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
@@ -144,7 +105,7 @@ final class SpotifyController: MediaControllerProtocol {
 
     func setVolume(_ level: Double) async {
         let clamped = max(0.0, min(1.0, level))
-        await appleScriptProvider.setVolume(Int(clamped * 100))
+        await provider.setVolume(Int(clamped * 100))
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
@@ -154,26 +115,7 @@ final class SpotifyController: MediaControllerProtocol {
     }
 
     func updatePlaybackInfo() async {
-        let provider = await stateProvider()
-        var playerState = await provider.getPlayerState()
-        var readViaAppleScript = (provider === appleScriptProvider)
-
-        // Web API /v1/me/player 在云端没把桌面端标成 active device 时会返 204，
-        // 解出来是默认值（trackName="Unknown", duration=0）。此时桌面 App 还在播，
-        // 回退到 AppleScript 直接问桌面 App 拿真实状态。
-        if playerState.duration == 0,
-           playerState.trackName == "Unknown",
-           isActive(),
-           provider !== appleScriptProvider {
-            playerState = await appleScriptProvider.getPlayerState()
-            readViaAppleScript = true
-        }
-
-        // AppleScript 读 repeat 只能拿到 bool，会把刚 toggle 出来的 .one 退成 .all。
-        // 走 AppleScript 路径时保留 cached repeatMode（即 toggleRepeat 推进的用户意图）。
-        let resolvedRepeatMode: RepeatMode = readViaAppleScript
-            ? playbackState.repeatMode
-            : playerState.repeatMode
+        let playerState = await provider.getPlayerState()
 
         var state = PlaybackState(
             bundleIdentifier: "com.spotify.client",
@@ -185,7 +127,8 @@ final class SpotifyController: MediaControllerProtocol {
             duration: playerState.duration,
             playbackRate: 1,
             isShuffled: playerState.shuffle,
-            repeatMode: resolvedRepeatMode,
+            // AppleScript bool 读会把 .one 退成 .all → 保留 cached 的用户意图
+            repeatMode: playbackState.repeatMode,
             lastUpdated: Date(),
             artwork: nil,
             volume: Double(playerState.volume) / 100.0,
@@ -249,20 +192,4 @@ final class SpotifyController: MediaControllerProtocol {
             }
         }
     }
-
-    // 用于 Like / Shuffle / Repeat 的服务端写操作 + getPlayerState 读全状态。
-    // 已登录 Web API 时优先走 Web API；否则降级到 AppleScript（only 两态 repeat，无 Like）。
-    // 限流冷却期间也直接走 AppleScript——否则轮询每秒都在 performRequest 里打一行 "skipped"。
-    private func stateProvider() async -> SpotifyProvider {
-        let hasAccess = await hasNetworkAccess()
-        guard let webApiProvider, hasAccess else {
-            NSLog("[Spotify] state provider -> AppleScript (no token)")
-            return appleScriptProvider
-        }
-        if let webApi = webApiProvider as? SpotifyWebApiProvider, webApi.isRateLimited {
-            return appleScriptProvider
-        }
-        return webApiProvider
-    }
-
 }
