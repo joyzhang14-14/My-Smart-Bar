@@ -466,11 +466,11 @@ struct ContentView: View {
                     height: max(0, vm.effectiveClosedNotchHeight - 12)
                 )
                 .overlay {
-                    if skipLeftIconVisible {
-                        Image(systemName: "backward.end.fill")
+                    if skipRightIconVisible {
+                        Image(systemName: "forward.end.fill")
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(.white)
-                            .symbolEffect(.bounce, value: skipLeftIconTrigger)
+                            .symbolEffect(.bounce, value: skipRightIconTrigger)
                             .transition(.opacity)
                     }
                 }
@@ -555,11 +555,11 @@ struct ContentView: View {
                 alignment: .center
             )
             .overlay {
-                if skipRightIconVisible {
-                    Image(systemName: "forward.end.fill")
+                if skipLeftIconVisible {
+                    Image(systemName: "backward.end.fill")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(.white)
-                        .symbolEffect(.bounce, value: skipRightIconTrigger)
+                        .symbolEffect(.bounce, value: skipLeftIconTrigger)
                         .transition(.opacity)
                 }
             }
