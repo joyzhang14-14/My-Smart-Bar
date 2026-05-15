@@ -23,9 +23,13 @@ final class SpotifyController: MediaControllerProtocol {
 
     var supportsVolumeControl: Bool { true }
 
-    // Like 通过 AppleScript like track 命令实现（add only），不依赖 Web API token，
-    // 因此 Spotify 模式下始终支持。
-    var supportsFavorite: Bool { true }
+    // Spotify 模式下 Like 没有可用实现：
+    // - Web API /v1/me/tracks: 403（Development Mode 不开放 user-library-*，且 Extended
+    //   Quota Mode 已停止自助申请）
+    // - AppleScript `like track`: syntax error，Spotify 已废止该命令
+    // - AppleScript `starred` 属性: AppleEvent handler failed，已被废止
+    // 不显示按钮比留着点了没反应更诚实。Apple Music 模式 Like 不受影响。
+    var supportsFavorite: Bool { false }
 
     private let appleScriptProvider: SpotifyProvider
     private let webApiProvider: SpotifyProvider?
@@ -83,12 +87,8 @@ final class SpotifyController: MediaControllerProtocol {
     // 其余播放控制（play/pause/next/previous/seek/volume）始终走 AppleScript，本地即时，不依赖网络。
 
     func setFavorite(_ favorite: Bool) async {
-        // 走 AppleScript 而非 Web API：Spotify Development Mode 下 /v1/me/tracks 一律 403
-        // （即使 user-library-modify scope 拿到、user 加入 Users and Access 也不行）。
-        // AppleScript like track 由 Spotify 桌面端处理，会同步到服务端的 Liked Songs。
-        // 因为读不到 is_liked 状态，UI 心形永远显示空心 → 这里也只接受 add（liked=true）。
-        NSLog("[Spotify] setFavorite(%@) via AppleScript", favorite ? "true" : "false")
-        await appleScriptProvider.setLiked(favorite, id: "")
+        // 见上方 supportsFavorite 注释：Spotify 模式下 Like 无可用路径，方法保留只为
+        // 满足 MediaControllerProtocol，按钮已被 UI 层隐藏，实际不会被调用。
     }
 
     func play() async { await appleScriptProvider.play() }
