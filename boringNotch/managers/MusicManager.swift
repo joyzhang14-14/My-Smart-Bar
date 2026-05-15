@@ -62,6 +62,10 @@ class MusicManager: ObservableObject {
     private var lastArtworkAlbum: String = "Self Love"
     private var lastArtworkBundleIdentifier: String? = nil
 
+    // 记录上次实际发起 fetch 的 (title|artist)，用于去重——避免同一首歌
+    // 在启动 / 播放状态切换 / 重复 state 推送时被反复抓取（fetch 会清空 currentLyrics 导致闪烁）。
+    private var lastLyricsFetchKey: String? = nil
+
     @Published var isFlipping: Bool = false
     private var flipWorkItem: DispatchWorkItem?
 
@@ -202,6 +206,18 @@ class MusicManager: ObservableObject {
 
             if state.isPlaying && !state.title.isEmpty && !state.artist.isEmpty {
                 self.updateSneakPeek()
+            }
+
+            // 播放状态切换时也尝试抓歌词。覆盖两种场景：
+            //   1. 开机后用户首次播放——hasContentChange 在某些时序下可能漏掉
+            //   2. 之前 fetch 失败（网络/SSL/反爬），用户暂停再播是个补抓机会
+            // 内部已 dedup：同一首歌有歌词或正在抓时不会重复发请求。
+            if !state.title.isEmpty {
+                self.fetchLyricsIfAvailable(
+                    bundleIdentifier: state.bundleIdentifier,
+                    title: state.title,
+                    artist: state.artist
+                )
             }
         }
 
@@ -360,9 +376,21 @@ class MusicManager: ObservableObject {
             DispatchQueue.main.async {
                 self.isFetchingLyrics = false
                 self.currentLyrics = ""
+                self.syncedLyrics = []
+                self.lastLyricsFetchKey = nil
             }
             return
         }
+
+        // 去重：同一首歌已经有歌词，或正在抓 → 不重复发请求。
+        // 这样开机 / 播放状态切换 / 重复 state 推送时调本函数都是安全的。
+        let key = "\(title)|\(artist)"
+        let alreadyHasLyrics = !syncedLyrics.isEmpty
+            || !currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if lastLyricsFetchKey == key && (alreadyHasLyrics || isFetchingLyrics) {
+            return
+        }
+        lastLyricsFetchKey = key
 
         // Prefer native Apple Music lyrics when available
         if let bundleIdentifier = bundleIdentifier, bundleIdentifier.contains("com.apple.Music") {
