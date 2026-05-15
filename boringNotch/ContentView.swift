@@ -404,16 +404,10 @@ struct ContentView: View {
                       .fixedSize()
               }
               .zIndex(2)
-            Group {
-                if shouldShowExtendedLyrics {
-                    ExtendedLyricsBar()
-                        .transition(
-                            .scale(scale: 0.6, anchor: .top)
-                            .combined(with: .opacity)
-                        )
-                }
-            }
-            .animation(animationSpring, value: shouldShowExtendedLyrics)
+            // ⚠️ DEBUG: 暂时禁用 ExtendedLyricsBar 渲染以隔离问题
+            // if shouldShowExtendedLyrics {
+            //     ExtendedLyricsBar()
+            // }
             if vm.notchState == .open {
                 VStack {
                     switch coordinator.currentView {
@@ -584,7 +578,7 @@ struct ContentView: View {
     func ExtendedLyricsBar() -> some View {
         // 宽度 = 播放音乐时 chin 延展后的宽度（比纯刘海宽一点点），
         // 高度 = 刘海本身高度。
-        let width = vm.closedNotchSize.width + 2 * max(0, vm.closedNotchSize.height - 12) + 20
+        let width = vm.closedNotchSize.width + 2 * max(0, vm.closedNotchSize.height - 12) + 20 - 10
         let height = vm.closedNotchSize.height
 
         TimelineView(.animation(minimumInterval: 0.25)) { timeline in
