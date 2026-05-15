@@ -588,10 +588,10 @@ struct ContentView: View {
     // 因此整个 mainLayout 高度自然增高、保留双圆角。本身不接收任何鼠标事件。
     @ViewBuilder
     func ExtendedLyricsBar() -> some View {
-        // 宽度 = 播放音乐时 chin 延展后的宽度（比纯刘海宽一点点），
-        // 高度 = 刘海本身高度。
-        let width = vm.closedNotchSize.width + 2 * max(0, vm.closedNotchSize.height - 12) + 20
+        // 宽度 = 纯刘海宽度（不含 live activity 的 chin 延展）；高度 = 刘海本身高度。
+        let width = vm.closedNotchSize.width
         let height = vm.closedNotchSize.height
+        let _ = print("[Lyrics] closedNotchSize=\(vm.closedNotchSize) -> width=\(width), height=\(height)")
 
         TimelineView(.animation(minimumInterval: 0.25)) { timeline in
             let currentElapsed: Double = {
@@ -628,9 +628,14 @@ struct ContentView: View {
                 }
             }
             .frame(width: width, height: height, alignment: .center)
+            // ⚠️ DEBUG: inner frame 红底黄框
+            .background(Color.red.opacity(0.35))
+            .border(Color.yellow, width: 2)
             .clipped()
             .animation(.easeOut(duration: 0.25), value: line)
         }
+        // ⚠️ DEBUG: outer frame 蓝色边框
+        .border(Color.blue, width: 1)
         .frame(maxWidth: .infinity, alignment: .center)
         .allowsHitTesting(false)
     }
