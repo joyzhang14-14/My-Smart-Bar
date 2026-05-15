@@ -581,9 +581,10 @@ struct ContentView: View {
     // 因此整个 mainLayout 高度自然增高、保留双圆角。本身不接收任何鼠标事件。
     @ViewBuilder
     func ExtendedLyricsBar() -> some View {
-        // 跟主 notch 同宽；高度 = 2× closed notch 高度，给歌词足够展示空间。
+        // 长宽都以"不 hover 时纯刘海" closedNotchSize 为基准：
+        // 宽度 = 刘海宽（不含 chin 延展），高度 = 2× 刘海高（给歌词足够展示空间）。
         let width = vm.closedNotchSize.width
-        let height = vm.effectiveClosedNotchHeight * 2
+        let height = vm.closedNotchSize.height * 2
 
         TimelineView(.animation(minimumInterval: 0.25)) { timeline in
             let currentElapsed: Double = {
