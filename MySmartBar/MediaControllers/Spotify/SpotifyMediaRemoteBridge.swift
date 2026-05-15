@@ -2,42 +2,52 @@
 //  SpotifyMediaRemoteBridge.swift
 //  boringNotch
 //
-//  通过 macOS 私有 MediaRemote.framework 直接给 Spotify（或当前 NowPlaying app）发
-//  三态 repeat / shuffle 命令。绕开 Web API（限流 / OAuth）+ AppleScript（只支持 bool）。
+//  通过 mediaremote-adapter.pl 子进程给当前 NowPlaying app（通常就是 Spotify）发
+//  三态 repeat / shuffle 命令。macOS 15.4+ 起 Apple 锁了 MediaRemote 私有 API 的直接
+//  in-process 调用，必须通过子进程绕一下（上游 boring.notch 同款方案，跟 NowPlayingController
+//  读 streaming 共用同一套 adapter）。
 //
 
 import Foundation
 
 final class SpotifyMediaRemoteBridge {
 
-    typealias SetRepeatModeFn = @convention(c) (Int) -> Void
-    typealias SetShuffleModeFn = @convention(c) (Int) -> Void
-
-    private let setRepeatMode: SetRepeatModeFn
-    private let setShuffleMode: SetShuffleModeFn
+    private let scriptPath: String
+    private let frameworkPath: String
 
     init?() {
         guard
-            let bundle = CFBundleCreate(
-                kCFAllocatorDefault,
-                NSURL(fileURLWithPath: "/System/Library/PrivateFrameworks/MediaRemote.framework")),
-            let setRepeatPtr = CFBundleGetFunctionPointerForName(
-                bundle, "MRMediaRemoteSetRepeatMode" as CFString),
-            let setShufflePtr = CFBundleGetFunctionPointerForName(
-                bundle, "MRMediaRemoteSetShuffleMode" as CFString)
-        else { return nil }
-
-        setRepeatMode = unsafeBitCast(setRepeatPtr, to: SetRepeatModeFn.self)
-        setShuffleMode = unsafeBitCast(setShufflePtr, to: SetShuffleModeFn.self)
+            let scriptURL = Bundle.main.url(forResource: "mediaremote-adapter", withExtension: "pl"),
+            let framework = Bundle.main.privateFrameworksPath?.appending("/MediaRemoteAdapter.framework")
+        else {
+            NSLog("[Spotify] MediaRemote adapter not found in bundle")
+            return nil
+        }
+        scriptPath = scriptURL.path
+        frameworkPath = framework
     }
 
-    // RepeatMode.rawValue 已经是 off=1 / one=2 / all=3，直接传
+    // adapter mode：1=off, 2=one, 3=all（与 RepeatMode.rawValue 一致）
     func setRepeat(_ mode: RepeatMode) {
-        setRepeatMode(mode.rawValue)
+        run("repeat", String(mode.rawValue))
     }
 
-    // Shuffle 的 MediaRemote 编码：off=1, on=3
+    // adapter mode：1=off, 3=on
     func setShuffle(_ enabled: Bool) {
-        setShuffleMode(enabled ? 3 : 1)
+        run("shuffle", enabled ? "3" : "1")
+    }
+
+    private func run(_ command: String, _ value: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+        process.arguments = [scriptPath, frameworkPath, command, value]
+        // 静默掉 stdout/stderr，避免每次 click 都在 console 打 adapter 内部日志
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do {
+            try process.run()
+        } catch {
+            NSLog("[Spotify] MediaRemote adapter run failed: \(error.localizedDescription)")
+        }
     }
 }
