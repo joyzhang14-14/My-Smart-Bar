@@ -463,17 +463,7 @@ class MusicManager: ObservableObject {
             return
         }
 
-        // 2) Fallback：app 内置的 NetEase weapi 原生客户端。
-        if let result = await NetEaseLyricsClient.fetchLyrics(
-            title: cleanTitle,
-            artist: cleanArtist,
-            durationSeconds: self.songDuration
-        ) {
-            applyLyricsResult(plain: result.plain, synced: result.synced)
-            return
-        }
-
-        // 3) Fallback：QQ 音乐（无加密、JSON 包参数 + Referer 头）。
+        // 2) Fallback：QQ 音乐（无加密、JSON 包参数 + Referer 头；时间线 / 元数据通常比 NetEase 准）。
         if let result = await QQMusicLyricsClient.fetchLyrics(
             title: cleanTitle,
             artist: cleanArtist,
@@ -483,8 +473,18 @@ class MusicManager: ObservableObject {
             return
         }
 
+        // 3) Fallback：app 内置的 NetEase weapi 原生客户端（QQ 没收录时兜底）。
+        if let result = await NetEaseLyricsClient.fetchLyrics(
+            title: cleanTitle,
+            artist: cleanArtist,
+            durationSeconds: self.songDuration
+        ) {
+            applyLyricsResult(plain: result.plain, synced: result.synced)
+            return
+        }
+
         // 全部失败：清空。
-        NSLog("[Lyrics] no lyrics found for \"\(cleanTitle)\" - \"\(cleanArtist)\" (lrclib + netease + qq all empty/error)")
+        NSLog("[Lyrics] no lyrics found for \"\(cleanTitle)\" - \"\(cleanArtist)\" (lrclib + qq + netease all empty/error)")
         self.currentLyrics = ""
         self.syncedLyrics = []
         self.isFetchingLyrics = false
