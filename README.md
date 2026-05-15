@@ -24,11 +24,19 @@
 
 ## Install
 
-1. Download `MySmartBar-X.Y.Z.dmg` from [the latest release](https://github.com/joyzhang14-14/My-Smart-Bar/releases/latest)
-2. Open the DMG and drag the app into `Applications`
-3. **First launch:** right-click the app → **Open** (the app uses a self-signed certificate, so Gatekeeper needs manual approval once)
+1. Download `MySmartBar-X.Y.Z.dmg` from [the latest release](https://github.com/joyzhang14-14/My-Smart-Bar/releases/latest).
+2. The app uses a self-signed certificate, so Gatekeeper will block it. Pick one of these to bypass it:
 
-After that, the app silently checks for updates on launch.
+   **Option A — strip quarantine (no prompts):**
+   ```bash
+   xattr -dr com.apple.quarantine ~/Downloads/MySmartBar-*.dmg
+   ```
+   Then open the DMG and drag the app into `Applications` — first launch just works.
+
+   **Option B — manually approve once:**
+   Open the DMG, drag into `Applications`, then **right-click the app → Open → Open** in the warning dialog. Only needed on first launch.
+
+After install, the app silently checks for updates on launch via Sparkle.
 
 ## Auto-updates
 
