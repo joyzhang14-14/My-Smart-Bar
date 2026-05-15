@@ -211,7 +211,10 @@ final class SpotifyController: MediaControllerProtocol {
 
     private func getPlaybackProvider() async -> SpotifyProvider {
         let hasAccess = await hasNetworkAccess()
-        guard let webApiProvider, hasAccess else { return appleScriptProvider }
+        guard let webApiProvider, hasAccess else {
+            NSLog("[Spotify] provider -> AppleScript (no token)")
+            return appleScriptProvider
+        }
         return webApiProvider
     }
 

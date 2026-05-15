@@ -102,7 +102,10 @@ final class SpotifyWebApiProvider: SpotifyProvider {
     }
 
     private func performRequest(_ path: String, method: String, body: Data?) async -> Data? {
-        guard let token = await auth.validToken() else { return nil }
+        guard let token = await auth.validToken() else {
+            NSLog("[Spotify] %@ %@ skipped: no valid token", method, path)
+            return nil
+        }
         guard let url = URL(string: path, relativeTo: baseURL) else { return nil }
 
         var request = URLRequest(url: url)
@@ -114,8 +117,13 @@ final class SpotifyWebApiProvider: SpotifyProvider {
         }
 
         guard let (data, response) = try? await session.data(for: request),
-              let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode) else {
+              let http = response as? HTTPURLResponse else {
+            NSLog("[Spotify] %@ %@ transport error", method, path)
+            return nil
+        }
+        guard (200...299).contains(http.statusCode) else {
+            let bodyPreview = String(data: data.prefix(300), encoding: .utf8) ?? "<binary>"
+            NSLog("[Spotify] %@ %@ -> %d  %@", method, path, http.statusCode, bodyPreview)
             return nil
         }
         return data.isEmpty ? Data("{}".utf8) : data
