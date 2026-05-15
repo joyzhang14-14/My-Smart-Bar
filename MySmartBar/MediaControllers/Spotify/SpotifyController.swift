@@ -124,40 +124,32 @@ final class SpotifyController: MediaControllerProtocol {
         await updatePlaybackInfo()
     }
 
-    // Web API 健康时三态循环：off → all (context) → one (track) → off
-    // Web API 不可用（无 token / 限流中）时退化两态：off ↔ all
-    // 否则 cached state 永远卡在 .all（AppleScript 读不出 .one），点击会"无反应"。
+    // 三态循环：off → all (context) → one (track) → off
+    // cached 的 repeatMode 在这里被视作"用户意图"——点了什么立刻就推进到 next。
+    // 因为 AppleScript bool 读不出 .one，updatePlaybackInfo 在走 AppleScript 读时
+    // 不会覆盖 repeatMode（见下方），所以三态 cycle 永远不会卡。
     func toggleRepeat() async {
-        let threeState = await canUseWebApiForRepeat()
         let next: RepeatMode
-        if threeState {
-            switch playbackState.repeatMode {
-            case .off: next = .all
-            case .all: next = .one
-            case .one: next = .off
-            }
-        } else {
-            next = (playbackState.repeatMode == .off) ? .all : .off
+        switch playbackState.repeatMode {
+        case .off: next = .all
+        case .all: next = .one
+        case .one: next = .off
         }
-        NSLog("[Spotify] toggleRepeat invoked: %@ -> %@ (cycle=%@)",
+        NSLog("[Spotify] toggleRepeat invoked: %@ -> %@",
               String(describing: playbackState.repeatMode),
-              String(describing: next),
-              threeState ? "3-state" : "2-state")
+              String(describing: next))
         let provider = await stateProvider()
         let ok = await provider.setRepeatMode(next)
-        // Web API 写失败（404 No Active Device / 429 限流）→ 走 AppleScript（只支持 bool repeat）
+        // Web API 写失败（404 No Active Device / 429 限流）→ 走 AppleScript（只支持 bool repeat，
+        // .one 实际上只写成"开启"，但 cached state 仍然显示 .one 给用户）
         if !ok, provider !== appleScriptProvider {
             NSLog("[Spotify] toggleRepeat fell back to AppleScript (bool repeat only)")
             _ = await appleScriptProvider.setRepeatMode(next)
         }
+        // 立即把 cached state 推进到用户意图，避免随后 AppleScript 读把 .one 退回 .all
+        playbackState.repeatMode = next
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
-    }
-
-    private func canUseWebApiForRepeat() async -> Bool {
-        guard let webApi = webApiProvider as? SpotifyWebApiProvider else { return false }
-        guard await hasNetworkAccess() else { return false }
-        return !webApi.isRateLimited
     }
 
     func setVolume(_ level: Double) async {
@@ -174,6 +166,7 @@ final class SpotifyController: MediaControllerProtocol {
     func updatePlaybackInfo() async {
         let provider = await stateProvider()
         var playerState = await provider.getPlayerState()
+        var readViaAppleScript = (provider === appleScriptProvider)
 
         // Web API /v1/me/player 在云端没把桌面端标成 active device 时会返 204，
         // 解出来是默认值（trackName="Unknown", duration=0）。此时桌面 App 还在播，
@@ -183,7 +176,14 @@ final class SpotifyController: MediaControllerProtocol {
            isActive(),
            provider !== appleScriptProvider {
             playerState = await appleScriptProvider.getPlayerState()
+            readViaAppleScript = true
         }
+
+        // AppleScript 读 repeat 只能拿到 bool，会把刚 toggle 出来的 .one 退成 .all。
+        // 走 AppleScript 路径时保留 cached repeatMode（即 toggleRepeat 推进的用户意图）。
+        let resolvedRepeatMode: RepeatMode = readViaAppleScript
+            ? playbackState.repeatMode
+            : playerState.repeatMode
 
         var state = PlaybackState(
             bundleIdentifier: "com.spotify.client",
@@ -195,7 +195,7 @@ final class SpotifyController: MediaControllerProtocol {
             duration: playerState.duration,
             playbackRate: 1,
             isShuffled: playerState.shuffle,
-            repeatMode: playerState.repeatMode,
+            repeatMode: resolvedRepeatMode,
             lastUpdated: Date(),
             artwork: nil,
             volume: Double(playerState.volume) / 100.0,
