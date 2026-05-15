@@ -946,7 +946,19 @@ struct ExtendedLyricsBarBody: View {
         let newLine: String
         if !musicManager.syncedLyrics.isEmpty {
             // 用户在 Settings 里手动校准的偏移：+ = LRC 提前 → 推迟显示 → 查更早的时间点
-            newLine = musicManager.lyricLine(at: elapsed - Defaults[.lyricsOffset])
+            let line = musicManager.lyricLine(at: elapsed - Defaults[.lyricsOffset])
+            // lyricLine 返回 "" 有两种情况：(1) pre-roll 期 (2) syncedLyricsKey 与当前歌不匹配（double-check）。
+            // 仿 My-Orphies：只在 (1) 时把空白替换成"歌名 - 歌手"作为占位；(2) 保持空白避免显示错歌。
+            if line.isEmpty {
+                let currentKey = "\(musicManager.songTitle)|\(musicManager.artistName)"
+                if musicManager.syncedLyricsKey == currentKey {
+                    newLine = trackArtistFallback
+                } else {
+                    newLine = ""
+                }
+            } else {
+                newLine = line
+            }
         } else {
             newLine = musicManager.currentLyrics
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -955,6 +967,13 @@ struct ExtendedLyricsBarBody: View {
         if newLine != currentLine {
             currentLine = newLine
         }
+    }
+
+    private var trackArtistFallback: String {
+        let title = musicManager.songTitle.trimmingCharacters(in: .whitespaces)
+        let artist = musicManager.artistName.trimmingCharacters(in: .whitespaces)
+        if title.isEmpty { return "" }
+        return artist.isEmpty ? title : "\(title) - \(artist)"
     }
 }
 
