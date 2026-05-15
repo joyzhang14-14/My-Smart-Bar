@@ -173,17 +173,28 @@ struct MusicControlsView: View {
                         let v = scalar.value
                         return v >= 0x0600 && v <= 0x06FF
                     }
-                    MarqueeText(
-                        .constant(line),
-                        font: .subheadline,
-                        nsFont: .subheadline,
-                        textColor: musicManager.isFetchingLyrics ? .gray.opacity(0.7) : .gray,
-                        frameWidth: width
-                    )
-                    .font(isPersian ? .custom("Vazirmatn-Regular", size: NSFont.preferredFont(forTextStyle: .subheadline).pointSize) : .subheadline)
-                    .lineLimit(1)
+                    // 行切换时旧行向上淡出、新行从下方淡入：用 .id(line) 让 SwiftUI 视为不同实例，
+                    // 触发 ZStack 的 transition；ZStack + clipped 避免动画过程中溢出影响周边布局。
+                    ZStack(alignment: .leading) {
+                        MarqueeText(
+                            .constant(line),
+                            font: .subheadline,
+                            nsFont: .subheadline,
+                            textColor: musicManager.isFetchingLyrics ? .gray.opacity(0.7) : .gray,
+                            frameWidth: width
+                        )
+                        .font(isPersian ? .custom("Vazirmatn-Regular", size: NSFont.preferredFont(forTextStyle: .subheadline).pointSize) : .subheadline)
+                        .lineLimit(1)
+                        .id(line)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .opacity)
+                        ))
+                    }
+                    .frame(width: width, alignment: .leading)
+                    .clipped()
                     .opacity(musicManager.isPlaying ? 1 : 0)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .animation(.easeOut(duration: 0.25), value: line)
                 }
             }
         }
