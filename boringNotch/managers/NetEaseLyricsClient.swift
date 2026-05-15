@@ -1,0 +1,263 @@
+//
+//  NetEaseLyricsClient.swift
+//  boringNotch
+//
+//  在 app 内直接实现网易云音乐 weapi 加密接口，作为 lrclib 失败时的歌词 fallback。
+//  对应 https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced 的 crypto/search/lyric 三段，
+//  这样用户不再需要自部署 Docker / Node server。
+//
+
+import CommonCrypto
+import Foundation
+import Security
+
+enum NetEaseLyricsClient {
+    // MARK: - Public
+
+    /// 给定歌名 + 歌手名，返回（plain, synced）歌词文本。synced 是带 [mm:ss.xx] 时间戳的 LRC。
+    static func fetchLyrics(title: String, artist: String) async -> (plain: String, synced: String)? {
+        let query = artist.isEmpty ? title : "\(title) \(artist)"
+        guard let songID = await searchSongID(query: query) else {
+            NSLog("[Lyrics][NetEase native] no song match for \"\(query)\"")
+            return nil
+        }
+        guard let lrc = await fetchLRC(songID: songID) else {
+            NSLog("[Lyrics][NetEase native] no lyric for song id \(songID)")
+            return nil
+        }
+        let plain = stripLRCTimestamps(lrc)
+        return (plain: plain, synced: lrc)
+    }
+
+    // MARK: - Endpoints
+
+    private static func searchSongID(query: String) async -> Int? {
+        let body: [String: Any] = [
+            "s": query,
+            "type": 1,
+            "limit": 1,
+            "offset": 0,
+            "csrf_token": ""
+        ]
+        guard let json = jsonString(body),
+              let resp = await postWeapi(path: "/cloudsearch/get/web", paramsJSON: json) else {
+            return nil
+        }
+        guard let result = resp["result"] as? [String: Any],
+              let songs = result["songs"] as? [[String: Any]],
+              let first = songs.first,
+              let id = first["id"] as? Int else {
+            return nil
+        }
+        return id
+    }
+
+    private static func fetchLRC(songID: Int) async -> String? {
+        let body: [String: Any] = [
+            "id": songID,
+            "lv": -1,
+            "tv": -1,
+            "csrf_token": ""
+        ]
+        guard let json = jsonString(body),
+              let resp = await postWeapi(path: "/song/lyric", paramsJSON: json) else {
+            return nil
+        }
+        guard let lrc = (resp["lrc"] as? [String: Any])?["lyric"] as? String else {
+            return nil
+        }
+        let trimmed = lrc.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    // MARK: - HTTP
+
+    private static func postWeapi(path: String, paramsJSON: String) async -> [String: Any]? {
+        guard let encrypted = encryptWeapi(json: paramsJSON) else {
+            NSLog("[Lyrics][NetEase native] encrypt failed for \(path)")
+            return nil
+        }
+        guard let url = URL(string: "https://music.163.com/weapi\(path)") else { return nil }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+        req.setValue("https://music.163.com/", forHTTPHeaderField: "Referer")
+        req.setValue("os=pc; appver=2.7.1.198277; osver=Macintosh", forHTTPHeaderField: "Cookie")
+
+        let bodyStr = "params=\(formURLEncode(encrypted.params))&encSecKey=\(formURLEncode(encrypted.encSecKey))"
+        req.httpBody = bodyStr.data(using: .utf8)
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            guard let http = response as? HTTPURLResponse else { return nil }
+            guard http.statusCode == 200 else {
+                NSLog("[Lyrics][NetEase native] \(path) HTTP \(http.statusCode)")
+                return nil
+            }
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                NSLog("[Lyrics][NetEase native] \(path) response not JSON")
+                return nil
+            }
+            if let code = json["code"] as? Int, code != 200 {
+                NSLog("[Lyrics][NetEase native] \(path) api code \(code)")
+                // 不直接 return nil —— 搜歌时 code 可能不等于 200 但 result 仍可用，保留兼容
+            }
+            return json
+        } catch {
+            NSLog("[Lyrics][NetEase native] \(path) error: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    // MARK: - Crypto
+
+    // 这两个常量、IV、公钥都来自 NetEase 官方 weapi 端的写死值；
+    // 与 api-enhanced 的 util/crypto.js 一字不差。
+    private static let presetKey = "0CoJUm6Qyw8W8jud"
+    private static let weapiIV = "0102030405060708"
+    private static let base62Alphabet = "PJArHa0gu8yfrFDLkRTiZcOqGS6dlnex4VtmsbpYwjvK1z3M9NoIBQEh2WUXC75"
+
+    // NetEase weapi RSA 公钥（1024-bit），原始 X.509 SubjectPublicKeyInfo 的 Base64 形式。
+    // 等价于 api-enhanced 里 -----BEGIN PUBLIC KEY----- 块的 PEM body。
+    private static let publicKeySPKIBase64 = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDgtQn2JZ34ZC28NWYpAUd98iZ37BUrX/aKzmFbt7clFSs6sXqHauqKWqdtLkF2KexO40H1YTX8z2lSgBBOAxLsvaklV8k4cBFK9snQXE9/DDaFt6Rr7iVZMldczhC0JNgTz+SHXT6CBHuX3e9SdB1Ua44oncaTWz7OBGLbCiK45wIDAQAB"
+
+    private static func encryptWeapi(json: String) -> (params: String, encSecKey: String)? {
+        // 第一层：用 presetKey 加密原始 JSON
+        guard let firstPass = aesCBCPKCS7Encrypt(plaintext: json, key: presetKey, iv: weapiIV) else {
+            return nil
+        }
+        let firstPassB64 = firstPass.base64EncodedString()
+
+        // 第二层：随机生成 16 位 secretKey，再次加密
+        let secretKey = randomBase62String(length: 16)
+        guard let secondPass = aesCBCPKCS7Encrypt(plaintext: firstPassB64, key: secretKey, iv: weapiIV) else {
+            return nil
+        }
+        let params = secondPass.base64EncodedString()
+
+        // RSA 加密 secretKey（reverse 后左侧零填充到 128 字节，no-padding）
+        let keyBytes = Array(secretKey.utf8)
+        let reversed = Data(keyBytes.reversed())
+        var padded = Data(count: 128 - reversed.count)
+        padded.append(reversed)
+        guard let encryptedKey = rsaEncryptNoPadding(padded) else { return nil }
+        let encSecKey = encryptedKey.map { String(format: "%02x", $0) }.joined()
+
+        return (params, encSecKey)
+    }
+
+    private static func aesCBCPKCS7Encrypt(plaintext: String, key: String, iv: String) -> Data? {
+        guard let textData = plaintext.data(using: .utf8),
+              let keyData = key.data(using: .utf8),
+              let ivData = iv.data(using: .utf8) else {
+            return nil
+        }
+        let bufferSize = textData.count + kCCBlockSizeAES128
+        var output = Data(count: bufferSize)
+        var outputLength: size_t = 0
+
+        let status = output.withUnsafeMutableBytes { outBuf -> CCCryptorStatus in
+            textData.withUnsafeBytes { inBuf in
+                keyData.withUnsafeBytes { keyBuf in
+                    ivData.withUnsafeBytes { ivBuf in
+                        CCCrypt(
+                            CCOperation(kCCEncrypt),
+                            CCAlgorithm(kCCAlgorithmAES128),
+                            CCOptions(kCCOptionPKCS7Padding),
+                            keyBuf.baseAddress, kCCKeySizeAES128,
+                            ivBuf.baseAddress,
+                            inBuf.baseAddress, textData.count,
+                            outBuf.baseAddress, bufferSize,
+                            &outputLength
+                        )
+                    }
+                }
+            }
+        }
+        guard status == kCCSuccess else {
+            NSLog("[Lyrics][NetEase native] CCCrypt status \(status)")
+            return nil
+        }
+        return output.prefix(outputLength)
+    }
+
+    private static func rsaEncryptNoPadding(_ data: Data) -> Data? {
+        guard data.count == 128 else {
+            NSLog("[Lyrics][NetEase native] RSA input must be 128 bytes, got \(data.count)")
+            return nil
+        }
+        guard let pkcs1KeyData = pkcs1PublicKey() else {
+            NSLog("[Lyrics][NetEase native] failed to extract PKCS#1 from SPKI")
+            return nil
+        }
+        let attrs: [String: Any] = [
+            kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
+            kSecAttrKeyClass as String: kSecAttrKeyClassPublic,
+            kSecAttrKeySizeInBits as String: 1024
+        ]
+        var error: Unmanaged<CFError>?
+        guard let secKey = SecKeyCreateWithData(pkcs1KeyData as CFData, attrs as CFDictionary, &error) else {
+            NSLog("[Lyrics][NetEase native] SecKeyCreateWithData failed: \(error?.takeRetainedValue().localizedDescription ?? "?")")
+            return nil
+        }
+        guard SecKeyIsAlgorithmSupported(secKey, .encrypt, .rsaEncryptionRaw) else {
+            NSLog("[Lyrics][NetEase native] rsaEncryptionRaw not supported")
+            return nil
+        }
+        guard let encrypted = SecKeyCreateEncryptedData(secKey, .rsaEncryptionRaw, data as CFData, &error) else {
+            NSLog("[Lyrics][NetEase native] SecKeyCreateEncryptedData failed: \(error?.takeRetainedValue().localizedDescription ?? "?")")
+            return nil
+        }
+        return encrypted as Data
+    }
+
+    // 把 PEM 里 SPKI 包装 (X.509 SubjectPublicKeyInfo) 剥成 PKCS#1 (RSAPublicKey)。
+    // 对 1024-bit RSA 公钥而言，SPKI 前缀固定 22 字节，剩下就是 PKCS#1。
+    private static func pkcs1PublicKey() -> Data? {
+        guard let spki = Data(base64Encoded: publicKeySPKIBase64), spki.count > 22 else {
+            return nil
+        }
+        return spki.subdata(in: 22..<spki.count)
+    }
+
+    // MARK: - Helpers
+
+    private static func randomBase62String(length: Int) -> String {
+        let chars = Array(base62Alphabet)
+        var out = ""
+        for _ in 0..<length {
+            out.append(chars[Int.random(in: 0..<chars.count)])
+        }
+        return out
+    }
+
+    private static func jsonString(_ obj: [String: Any]) -> String? {
+        guard let data = try? JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys]) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    // application/x-www-form-urlencoded 严格编码：保留 字母数字 - . _ * 其它全部 %XX
+    private static func formURLEncode(_ s: String) -> String {
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._*")
+        return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
+    }
+
+    private static func stripLRCTimestamps(_ lrc: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: #"\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]"#) else {
+            return lrc
+        }
+        let ns = lrc as NSString
+        let stripped = regex.stringByReplacingMatches(
+            in: lrc,
+            range: NSRange(location: 0, length: ns.length),
+            withTemplate: ""
+        )
+        return stripped
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+    }
+}

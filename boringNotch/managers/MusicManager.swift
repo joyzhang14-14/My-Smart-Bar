@@ -435,10 +435,15 @@ class MusicManager: ObservableObject {
             return
         }
 
-        // 2) Fallback：自部署的 NetEase Cloud Music API (api-enhanced)。
+        // 2) Fallback：NetEase。优先用用户配置的自部署 server；没配则走 app 内置 weapi 原生客户端。
         let neteaseURL = Defaults[.neteaseAPIBaseURL].trimmingCharacters(in: .whitespaces)
-        if !neteaseURL.isEmpty,
-           let result = await fetchFromNetEase(baseURL: neteaseURL, title: cleanTitle, artist: cleanArtist) {
+        let neteaseResult: (plain: String, synced: String)?
+        if neteaseURL.isEmpty {
+            neteaseResult = await NetEaseLyricsClient.fetchLyrics(title: cleanTitle, artist: cleanArtist)
+        } else {
+            neteaseResult = await fetchFromNetEase(baseURL: neteaseURL, title: cleanTitle, artist: cleanArtist)
+        }
+        if let result = neteaseResult {
             applyLyricsResult(plain: result.plain, synced: result.synced)
             return
         }
