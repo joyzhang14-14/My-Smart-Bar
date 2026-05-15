@@ -443,6 +443,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioPlayer.play(fileName: "boring", fileExtension: "m4a")
     }
 
+    // OAuth 回调入口：Spotify 授权完成后会把浏览器跳回 theboringteam.boringnotch://...
+    func application(_ app: NSApplication, open urls: [URL]) {
+        guard let url = urls.first, url.scheme == "theboringteam.boringnotch" else { return }
+        Task { await SpotifyAuthManager.shared.handleCallback(url: url) }
+    }
+
     func deviceHasNotch() -> Bool {
         if #available(macOS 12.0, *) {
             for screen in NSScreen.screens {
@@ -603,6 +609,7 @@ extension Notification.Name {
     static let showOnAllDisplaysChanged = Notification.Name("showOnAllDisplaysChanged")
     static let automaticallySwitchDisplayChanged = Notification.Name("automaticallySwitchDisplayChanged")
     static let expandedDragDetectionChanged = Notification.Name("expandedDragDetectionChanged")
+    static let spotifyAuthorizationChanged = Notification.Name("spotifyAuthorizationChanged")
 }
 
 extension CGRect: @retroactive Hashable {

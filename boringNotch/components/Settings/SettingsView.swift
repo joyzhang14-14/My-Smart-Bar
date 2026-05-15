@@ -693,6 +693,8 @@ struct Media: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            SpotifyAuthSection()
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("Media")
@@ -705,6 +707,51 @@ struct Media: View {
         } else {
             return MediaControllerType.allCases
         }
+    }
+}
+
+private struct SpotifyAuthSection: View {
+    @ObservedObject private var auth = SpotifyAuthManager.shared
+    @Default(.spotifyClientID) private var clientID
+    @State private var clientSecret: String = ""
+
+    var body: some View {
+        Section {
+            TextField("Client ID", text: $clientID)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled(true)
+
+            SecureField("Client Secret", text: $clientSecret)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { auth.updateClientSecret(clientSecret) }
+                .onChange(of: clientSecret) { _, newValue in
+                    auth.updateClientSecret(newValue)
+                }
+
+            HStack {
+                if auth.isAuthorized {
+                    Label("Connected", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else {
+                    Label("Not connected", systemImage: "circle")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if auth.isAuthorized {
+                    Button("Sign Out") { auth.signOut() }
+                } else {
+                    Button("Login with Spotify") { auth.startAuthFlow() }
+                        .disabled(!auth.hasConfiguredCredentials)
+                }
+            }
+        } header: {
+            Text("Spotify Web API")
+        } footer: {
+            Text("Required for Like and three-state Repeat on Spotify. In your Spotify Developer Dashboard, add the Redirect URI: theboringteam.boringnotch://spotify-callback")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .onAppear { clientSecret = auth.storedClientSecret() }
     }
 }
 

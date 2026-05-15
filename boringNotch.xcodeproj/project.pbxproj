@@ -36,7 +36,13 @@
 		1153BD912D986DB300979FB0 /* PlaybackState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1153BD902D986DB300979FB0 /* PlaybackState.swift */; };
 		1153BD932D986E4300979FB0 /* AppleMusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1153BD922D986E4300979FB0 /* AppleMusicController.swift */; };
 		1153BD982D9881F900979FB0 /* AppleScriptHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1153BD972D9881F900979FB0 /* AppleScriptHelper.swift */; };
-		1153BD9A2D98824300979FB0 /* SpotifyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1153BD992D98824300979FB0 /* SpotifyController.swift */; };
+		839AFC15020946D791A73C6B /* SpotifyMusicModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF4F26484554137BDE9225E /* SpotifyMusicModels.swift */; };
+		54AA541DD16F4313AA7563A8 /* SpotifyMusicProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4A62DCE6FB451686E0ED96 /* SpotifyMusicProvider.swift */; };
+		22514FCF395A4BA68A9C8B6F /* SpotifyKeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DE152033EF34C379176ABE5 /* SpotifyKeychainManager.swift */; };
+		C4D4E2E7FC4C46A8B346C99B /* SpotifyAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81356E14D1484CD7A26A5942 /* SpotifyAuthManager.swift */; };
+		2873A5EFA2A2466FA82460EA /* SpotifyAppleScriptProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D052D39173D46FABFCEB935 /* SpotifyAppleScriptProvider.swift */; };
+		40656527811D408AB46A11AC /* SpotifyWebApiProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF62D46D3BA40DF897003EF /* SpotifyWebApiProvider.swift */; };
+		0BCABB96F83D4FE38256FF0D /* SpotifyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286AF8F712754AC7B9D0F4A9 /* SpotifyController.swift */; };
 		1153BD9C2D98853B00979FB0 /* NowPlayingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1153BD9B2D98853B00979FB0 /* NowPlayingController.swift */; };
 		1153BDA72D99B22200979FB0 /* YouTubeMusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1153BDA62D99B22200979FB0 /* YouTubeMusicController.swift */; };
 		115C12EC2ED3D003009754CA /* OpenNotchHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115C12EB2ED3D003009754CA /* OpenNotchHUD.swift */; };
@@ -206,7 +212,13 @@
 		1153BD902D986DB300979FB0 /* PlaybackState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackState.swift; sourceTree = "<group>"; };
 		1153BD922D986E4300979FB0 /* AppleMusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicController.swift; sourceTree = "<group>"; };
 		1153BD972D9881F900979FB0 /* AppleScriptHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptHelper.swift; sourceTree = "<group>"; };
-		1153BD992D98824300979FB0 /* SpotifyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyController.swift; sourceTree = "<group>"; };
+		9FF4F26484554137BDE9225E /* SpotifyMusicModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyMusicModels.swift; sourceTree = "<group>"; };
+		EC4A62DCE6FB451686E0ED96 /* SpotifyMusicProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyMusicProvider.swift; sourceTree = "<group>"; };
+		5DE152033EF34C379176ABE5 /* SpotifyKeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyKeychainManager.swift; sourceTree = "<group>"; };
+		81356E14D1484CD7A26A5942 /* SpotifyAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAuthManager.swift; sourceTree = "<group>"; };
+		9D052D39173D46FABFCEB935 /* SpotifyAppleScriptProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAppleScriptProvider.swift; sourceTree = "<group>"; };
+		BCF62D46D3BA40DF897003EF /* SpotifyWebApiProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyWebApiProvider.swift; sourceTree = "<group>"; };
+		286AF8F712754AC7B9D0F4A9 /* SpotifyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyController.swift; sourceTree = "<group>"; };
 		1153BD9B2D98853B00979FB0 /* NowPlayingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingController.swift; sourceTree = "<group>"; };
 		1153BDA62D99B22200979FB0 /* YouTubeMusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeMusicController.swift; sourceTree = "<group>"; };
 		115C12EB2ED3D003009754CA /* OpenNotchHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenNotchHUD.swift; sourceTree = "<group>"; };
@@ -427,12 +439,26 @@
 			isa = PBXGroup;
 			children = (
 				1132E5232E78D6DA0068732D /* YouTube Music Controller */,
+				26203A3A5687475F97EC0514 /* Spotify */,
 				1153BD8D2D986B1F00979FB0 /* MediaControllerProtocol.swift */,
 				1153BD922D986E4300979FB0 /* AppleMusicController.swift */,
-				1153BD992D98824300979FB0 /* SpotifyController.swift */,
 				1153BD9B2D98853B00979FB0 /* NowPlayingController.swift */,
 			);
 			path = MediaControllers;
+			sourceTree = "<group>";
+		};
+		26203A3A5687475F97EC0514 /* Spotify */ = {
+			isa = PBXGroup;
+			children = (
+				9FF4F26484554137BDE9225E /* SpotifyMusicModels.swift */,
+				EC4A62DCE6FB451686E0ED96 /* SpotifyMusicProvider.swift */,
+				5DE152033EF34C379176ABE5 /* SpotifyKeychainManager.swift */,
+				81356E14D1484CD7A26A5942 /* SpotifyAuthManager.swift */,
+				9D052D39173D46FABFCEB935 /* SpotifyAppleScriptProvider.swift */,
+				BCF62D46D3BA40DF897003EF /* SpotifyWebApiProvider.swift */,
+				286AF8F712754AC7B9D0F4A9 /* SpotifyController.swift */,
+			);
+			path = Spotify;
 			sourceTree = "<group>";
 		};
 		116398942DF5D6B40052E6AF /* Providers */ = {
@@ -934,7 +960,13 @@
 				11EFCD702E8E92D600D0B974 /* ShelfItemViewModel.swift in Sources */,
 				1153BDA72D99B22200979FB0 /* YouTubeMusicController.swift in Sources */,
 				1163988F2DF5CC870052E6AF /* CalendarModel.swift in Sources */,
-				1153BD9A2D98824300979FB0 /* SpotifyController.swift in Sources */,
+				839AFC15020946D791A73C6B /* SpotifyMusicModels.swift in Sources */,
+				54AA541DD16F4313AA7563A8 /* SpotifyMusicProvider.swift in Sources */,
+				22514FCF395A4BA68A9C8B6F /* SpotifyKeychainManager.swift in Sources */,
+				C4D4E2E7FC4C46A8B346C99B /* SpotifyAuthManager.swift in Sources */,
+				2873A5EFA2A2466FA82460EA /* SpotifyAppleScriptProvider.swift in Sources */,
+				40656527811D408AB46A11AC /* SpotifyWebApiProvider.swift in Sources */,
+				0BCABB96F83D4FE38256FF0D /* SpotifyController.swift in Sources */,
 				118EBE292E946B3F00D54B5A /* ShareServiceFinder.swift in Sources */,
 				B19424092CD0FF01003E5DC2 /* LottieAnimationView.swift in Sources */,
 				B1F747F92EC7E94000F841DB /* LottieView.swift in Sources */,

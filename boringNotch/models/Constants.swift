@@ -122,6 +122,10 @@ extension Defaults.Keys {
     static let closeGestureEnabled = Key<Bool>("closeGestureEnabled", default: true)
     static let skipGestureEnabled = Key<Bool>("skipGestureEnabled", default: true)
     static let gestureSensitivity = Key<CGFloat>("gestureSensitivity", default: 200.0)
+
+    // MARK: Spotify
+    // Client ID 明文存于 Defaults（Spotify 文档允许公开）；Client Secret 走 Keychain。
+    static let spotifyClientID = Key<String>("spotifyClientID", default: "")
     
     // MARK: Media playback
     static let coloredSpectrogram = Key<Bool>("coloredSpectrogram", default: true)
