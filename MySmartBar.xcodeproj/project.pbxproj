@@ -43,6 +43,7 @@
 		2873A5EFA2A2466FA82460EA /* SpotifyAppleScriptProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D052D39173D46FABFCEB935 /* SpotifyAppleScriptProvider.swift */; };
 		40656527811D408AB46A11AC /* SpotifyWebApiProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF62D46D3BA40DF897003EF /* SpotifyWebApiProvider.swift */; };
 		0BCABB96F83D4FE38256FF0D /* SpotifyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286AF8F712754AC7B9D0F4A9 /* SpotifyController.swift */; };
+		7D8EAB12CDEF45A6B7C8D9E0 /* SpotifyMediaRemoteBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F2A3B4C5D6E7F8090A1B2C3 /* SpotifyMediaRemoteBridge.swift */; };
 		1153BD9C2D98853B00979FB0 /* NowPlayingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1153BD9B2D98853B00979FB0 /* NowPlayingController.swift */; };
 		1153BDA72D99B22200979FB0 /* YouTubeMusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1153BDA62D99B22200979FB0 /* YouTubeMusicController.swift */; };
 		115C12EC2ED3D003009754CA /* OpenNotchHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 115C12EB2ED3D003009754CA /* OpenNotchHUD.swift */; };
@@ -222,6 +223,7 @@
 		9D052D39173D46FABFCEB935 /* SpotifyAppleScriptProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAppleScriptProvider.swift; sourceTree = "<group>"; };
 		BCF62D46D3BA40DF897003EF /* SpotifyWebApiProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyWebApiProvider.swift; sourceTree = "<group>"; };
 		286AF8F712754AC7B9D0F4A9 /* SpotifyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyController.swift; sourceTree = "<group>"; };
+		1F2A3B4C5D6E7F8090A1B2C3 /* SpotifyMediaRemoteBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyMediaRemoteBridge.swift; sourceTree = "<group>"; };
 		1153BD9B2D98853B00979FB0 /* NowPlayingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingController.swift; sourceTree = "<group>"; };
 		1153BDA62D99B22200979FB0 /* YouTubeMusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeMusicController.swift; sourceTree = "<group>"; };
 		115C12EB2ED3D003009754CA /* OpenNotchHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenNotchHUD.swift; sourceTree = "<group>"; };
@@ -463,6 +465,7 @@
 				9D052D39173D46FABFCEB935 /* SpotifyAppleScriptProvider.swift */,
 				BCF62D46D3BA40DF897003EF /* SpotifyWebApiProvider.swift */,
 				286AF8F712754AC7B9D0F4A9 /* SpotifyController.swift */,
+				1F2A3B4C5D6E7F8090A1B2C3 /* SpotifyMediaRemoteBridge.swift */,
 			);
 			path = Spotify;
 			sourceTree = "<group>";
@@ -976,6 +979,7 @@
 				2873A5EFA2A2466FA82460EA /* SpotifyAppleScriptProvider.swift in Sources */,
 				40656527811D408AB46A11AC /* SpotifyWebApiProvider.swift in Sources */,
 				0BCABB96F83D4FE38256FF0D /* SpotifyController.swift in Sources */,
+				7D8EAB12CDEF45A6B7C8D9E0 /* SpotifyMediaRemoteBridge.swift in Sources */,
 				118EBE292E946B3F00D54B5A /* ShareServiceFinder.swift in Sources */,
 				B19424092CD0FF01003E5DC2 /* LottieAnimationView.swift in Sources */,
 				B1F747F92EC7E94000F841DB /* LottieView.swift in Sources */,
