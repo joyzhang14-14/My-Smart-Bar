@@ -559,11 +559,13 @@ class MusicManager: ObservableObject {
 
     func lyricLine(at elapsed: Double) -> String {
         guard !syncedLyrics.isEmpty else { return currentLyrics }
-        // Pre-roll buffer：第一行歌词之前的 intro 期，保持 fallback（通常为空），
-        // 否则长前奏的歌会把第一行歌词钉在屏幕上 10+ 秒才轮到它真正唱出来。
+        // Pre-roll buffer：第一行歌词之前的 intro 期返回空字符串，否则长前奏的歌会把
+        // 第一行歌词钉在屏幕上 10+ 秒才轮到它真正唱出来。注意不能返回 currentLyrics——
+        // 当 LRCLIB 只给了 synced 没给 plain 时，currentLyrics 是整段带时间戳的原始 LRC，
+        // 显示出来就是一团乱码。
         let preRoll: Double = 1.0
         if elapsed < syncedLyrics[0].time - preRoll {
-            return currentLyrics
+            return ""
         }
         // Binary search for last line with time <= elapsed
         var low = 0
