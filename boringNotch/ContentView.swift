@@ -406,6 +406,7 @@ struct ContentView: View {
               .zIndex(2)
             if shouldShowExtendedLyrics {
                 ExtendedLyricsBar()
+                    .offset(y: -3)
             }
             if vm.notchState == .open {
                 VStack {
@@ -575,9 +576,9 @@ struct ContentView: View {
     // 因此整个 mainLayout 高度自然增高、保留双圆角。本身不接收任何鼠标事件。
     @ViewBuilder
     func ExtendedLyricsBar() -> some View {
-        // 宽度直接跟 mainLayout 的 chin 同步（playing 时自动是 chin 延展宽度，
-        // battery 状态时是 640，idle face 时跟 face 同宽——保持视觉一致）。
-        let width = computedChinWidth
+        // 宽度 = 播放音乐时 chin 延展后的宽度（比纯刘海宽一点点），
+        // 高度 = 刘海本身高度。
+        let width = computedChinWidth 
         let height = vm.closedNotchSize.height - 15
 
         // 用独立 struct 才能持有 @State + Timer.publish。
