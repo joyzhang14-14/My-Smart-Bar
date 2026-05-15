@@ -196,7 +196,7 @@ struct GeneralSettings: View {
                 Picker(
                     selection: $notchHeightMode,
                     label:
-                        Text("Notch height on notch displays")
+                        Text("Smart Bar height on notch displays")
                 ) {
                     Text("Match real notch height")
                         .tag(WindowHeightMode.matchRealNotchSize)
@@ -219,14 +219,14 @@ struct GeneralSettings: View {
                 }
                 if notchHeightMode == .custom {
                     Slider(value: $notchHeight, in: 15...45, step: 1) {
-                        Text("Custom notch size - \(notchHeight, specifier: "%.0f")")
+                        Text("Custom Smart Bar size - \(notchHeight, specifier: "%.0f")")
                     }
                     .onChange(of: notchHeight) {
                         NotificationCenter.default.post(
                             name: Notification.Name.notchHeightChanged, object: nil)
                     }
                 }
-                Picker("Notch height on non-notch displays", selection: $nonNotchHeightMode) {
+                Picker("Smart Bar height on non-notch displays", selection: $nonNotchHeightMode) {
                     Text("Match menubar height")
                         .tag(WindowHeightMode.matchMenuBar)
                     Text("Match real notch height")
@@ -248,7 +248,7 @@ struct GeneralSettings: View {
                 }
                 if nonNotchHeightMode == .custom {
                     Slider(value: $nonNotchHeight, in: 0...40, step: 1) {
-                        Text("Custom notch size - \(nonNotchHeight, specifier: "%.0f")")
+                        Text("Custom Smart Bar size - \(nonNotchHeight, specifier: "%.0f")")
                     }
                     .onChange(of: nonNotchHeight) {
                         NotificationCenter.default.post(
@@ -256,7 +256,7 @@ struct GeneralSettings: View {
                     }
                 }
             } header: {
-                Text("Notch sizing")
+                Text("Smart Bar sizing")
             }
 
             NotchBehaviour()
@@ -311,7 +311,7 @@ struct GeneralSettings: View {
             }
         } footer: {
             Text(
-                "Two-finger swipe up on notch to close, two-finger swipe down on notch to open when **Open notch on hover** option is disabled"
+                "Two-finger swipe up on Smart Bar to close, two-finger swipe down on Smart Bar to open when **Open Smart Bar on hover** option is disabled"
             )
             .multilineTextAlignment(.trailing)
             .foregroundStyle(.secondary)
@@ -323,7 +323,7 @@ struct GeneralSettings: View {
     func NotchBehaviour() -> some View {
         Section {
             Defaults.Toggle(key: .openNotchOnHover) {
-                Text("Open notch on hover")
+                Text("Open Smart Bar on hover")
             }
             Defaults.Toggle(key: .enableHaptics) {
                     Text("Enable haptic feedback")
@@ -344,7 +344,7 @@ struct GeneralSettings: View {
                 }
             }
         } header: {
-            Text("Notch behavior")
+            Text("Smart Bar behavior")
         }
     }
 }
@@ -535,7 +535,7 @@ struct HUD: View {
             
             Section {
                 Defaults.Toggle(key: .showOpenNotchHUD) {
-                    Text("Show HUD in open notch")
+                    Text("Show HUD in open Smart Bar")
                 }
                 Defaults.Toggle(key: .showOpenNotchHUDPercentage) {
                     Text("Show percentage")
@@ -543,7 +543,7 @@ struct HUD: View {
                 .disabled(!Defaults[.showOpenNotchHUD])
             } header: {
                 HStack {
-                    Text("Open Notch")
+                    Text("Open Smart Bar")
                     customBadge(text: "Beta")
                 }
             }
@@ -569,7 +569,7 @@ struct HUD: View {
                     Text("Show percentage")
                 }
             } header: {
-                Text("Closed Notch")
+                Text("Closed Smart Bar")
             }
             .disabled(!Defaults[.hudReplacement])
         }
@@ -1236,7 +1236,7 @@ struct Appearance: View {
             Section {
                 Toggle("Always show tabs", isOn: $coordinator.alwaysShowTabs)
                 Defaults.Toggle(key: .settingsIconInNotch) {
-                    Text("Show settings icon in notch")
+                    Text("Show settings icon in Smart Bar")
                 }
 
             } header: {
@@ -1732,7 +1732,7 @@ struct Advanced: View {
                     Text("Hide title bar")
                 }
                 Defaults.Toggle(key: .showOnLockScreen) {
-                    Text("Show notch on lock screen")
+                    Text("Show Smart Bar on lock screen")
                 }
                 Defaults.Toggle(key: .hideFromScreenRecording) {
                     Text("Hide from screen recording")
@@ -1843,14 +1843,14 @@ struct Shortcuts: View {
                 Text("Media")
             } footer: {
                 Text(
-                    "Sneak Peek shows the media title and artist under the notch for a few seconds."
+                    "Sneak Peek shows the media title and artist under the Smart Bar for a few seconds."
                 )
                 .multilineTextAlignment(.trailing)
                 .foregroundStyle(.secondary)
                 .font(.caption)
             }
             Section {
-                KeyboardShortcuts.Recorder("Toggle Notch Open:", name: .toggleNotchOpen)
+                KeyboardShortcuts.Recorder("Toggle Smart Bar Open:", name: .toggleNotchOpen)
             }
         }
         .accentColor(.effectiveAccent)
