@@ -30,8 +30,6 @@ final class SpotifyController: MediaControllerProtocol {
     private let appleScriptProvider: SpotifyProvider
     private let webApiProvider: SpotifyProvider?
     private let hasNetworkAccess: NetworkAccessEvaluator
-    // MediaRemote 私有 framework，唯一支持三态 repeat 的本地通道
-    private let mediaRemote: SpotifyMediaRemoteBridge? = SpotifyMediaRemoteBridge()
 
     private var notificationTask: Task<Void, Never>?
     private var pollingTask: Task<Void, Never>?
@@ -115,21 +113,19 @@ final class SpotifyController: MediaControllerProtocol {
         NSLog("[Spotify] toggleShuffle invoked: %@ -> %@",
               playbackState.isShuffled ? "on" : "off",
               target ? "on" : "off")
-        // 首选 MediaRemote（本地、无限流、即时生效）；不可用时退到 AppleScript
-        if let mediaRemote {
-            mediaRemote.setShuffle(target)
-        } else {
-            _ = await appleScriptProvider.setShuffle(target)
-        }
-        // 立即把意图同步到 cached state，避免随后的 AppleScript 读把状态又拽回来
+        // MediaRemote SetShuffleMode 在 macOS 26 上对 Spotify 静默无效（exit 0 但 Spotify 不响应），
+        // AppleScript 是目前唯一稳定的写通道
+        _ = await appleScriptProvider.setShuffle(target)
         playbackState.isShuffled = target
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
 
-    // 三态循环：off → all (context) → one (track) → off
-    // MediaRemote 三态都支持；MediaRemote 不可用时退到 AppleScript 的 bool。
-    // cached 的 repeatMode 视作"用户意图"——立即推进，AppleScript 读不会覆盖（见 updatePlaybackInfo）。
+    // 三态循环 UI：off → all → one → off
+    // MediaRemote SetRepeatMode 在 macOS 26 上对 Spotify 静默无效（Spotify 不 handle mutation 命令），
+    // 实际写入只能走 AppleScript bool —— .one 在 Spotify 端会落到 .all（与 .all 等效）。
+    // cached repeatMode 视作"用户意图"立即推进，UI 上仍然三态循环；
+    // AppleScript bool 读不会覆盖（见 updatePlaybackInfo 的 readViaAppleScript 分支）。
     func toggleRepeat() async {
         let next: RepeatMode
         switch playbackState.repeatMode {
@@ -140,13 +136,7 @@ final class SpotifyController: MediaControllerProtocol {
         NSLog("[Spotify] toggleRepeat invoked: %@ -> %@",
               String(describing: playbackState.repeatMode),
               String(describing: next))
-        if let mediaRemote {
-            mediaRemote.setRepeat(next)
-        } else {
-            NSLog("[Spotify] toggleRepeat: MediaRemote unavailable, falling back to AppleScript")
-            _ = await appleScriptProvider.setRepeatMode(next)
-        }
-        // 立即把 cached state 推进到用户意图，AppleScript bool 读不会覆盖（updatePlaybackInfo 内处理）
+        _ = await appleScriptProvider.setRepeatMode(next)
         playbackState.repeatMode = next
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
