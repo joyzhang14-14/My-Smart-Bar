@@ -14,19 +14,64 @@ import Security
 enum NetEaseLyricsClient {
     // MARK: - Public
 
-    /// 给定歌名 + 歌手名，返回（plain, synced）歌词文本。synced 是带 [mm:ss.xx] 时间戳的 LRC。
+    /// 给定歌名 + 歌手名，返回（plain, synced）歌词文本。
+    /// synced 已经过 normalizeNetEaseLRC 转换成纯净的 `[mm:ss.xx]Line` 标准 LRC，
+    /// 调用方（MusicManager.parseLRC）可以按统一的标准格式处理，不需要懂 NetEase 方言。
     static func fetchLyrics(title: String, artist: String) async -> (plain: String, synced: String)? {
         let query = artist.isEmpty ? title : "\(title) \(artist)"
         guard let songID = await searchSongID(query: query) else {
             NSLog("[Lyrics][NetEase native] no song match for \"\(query)\"")
             return nil
         }
-        guard let lrc = await fetchLRC(songID: songID) else {
+        guard let raw = await fetchLRC(songID: songID) else {
             NSLog("[Lyrics][NetEase native] no lyric for song id \(songID)")
             return nil
         }
-        let plain = stripLRCTimestamps(lrc)
-        return (plain: plain, synced: lrc)
+        let synced = normalizeNetEaseLRC(raw)
+        if synced.isEmpty {
+            NSLog("[Lyrics][NetEase native] normalized LRC empty for song id \(songID)")
+            return nil
+        }
+        let plain = stripLRCTimestamps(synced)
+        return (plain: plain, synced: synced)
+    }
+
+    /// 把 NetEase 自家的 LRC 方言转成标准 LRC：
+    ///   - `[mm:ss.xxx]`  3 位毫秒    → 截成 2 位百分秒
+    ///   - `[mm:ss.xx-N]` 元数据 / 翻译标记 → 整行丢掉
+    ///   - `[ti:]/[ar:]/[al:]/[by:]/[offset:]` ID3 标签 → 整行丢掉
+    ///   - 时间 `00:00.00` 且文本含 `:` → 元数据（"作词:XXX"）→ 丢掉
+    /// 输出每行都是 `[mm:ss.xx]text` 标准格式，对 lrclib 友好的 parseLRC 友好。
+    /// 公开是因为 MusicManager 的"自部署 api-enhanced server"路径也要复用。
+    static func normalizeNetEaseLRC(_ raw: String) -> String {
+        let pattern = #"^\s*\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?(-\d+)?\]\s*(.*?)\s*$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return raw }
+
+        var lines: [String] = []
+        for sub in raw.split(separator: "\n") {
+            let line = String(sub)
+            let ns = line as NSString
+            guard let m = regex.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)) else {
+                continue
+            }
+            // -N 后缀 = NetEase 元数据 / 翻译标记
+            if m.range(at: 4).location != NSNotFound { continue }
+
+            let mm = ns.substring(with: m.range(at: 1))
+            let ss = ns.substring(with: m.range(at: 2))
+            var cs = "00"
+            if m.range(at: 3).location != NSNotFound {
+                let frac = ns.substring(with: m.range(at: 3))
+                cs = String((frac + "00").prefix(2))
+            }
+            let text = ns.substring(with: m.range(at: 5))
+            if text.isEmpty { continue }
+            // 启发式：00:00.00 + 文本含 ":" → 多半是 "作词 : XXX" 之类元数据
+            if mm == "00" && ss == "00" && cs == "00" && text.contains(":") { continue }
+
+            lines.append("[\(mm):\(ss).\(cs)]\(text)")
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Endpoints
@@ -291,9 +336,9 @@ enum NetEaseLyricsClient {
         return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
     }
 
-    // 剥掉所有 [...] 段：标准时间戳、NetEase 的 [mm:ss.xx-N] 元数据、以及 [ti:]/[ar:] 等 ID3 标签。
+    // 剥掉标准 [mm:ss.xx] 时间戳。输入应该是 normalizeNetEaseLRC 处理过的纯净 LRC。
     private static func stripLRCTimestamps(_ lrc: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: #"\[[^\]]*\]"#) else {
+        guard let regex = try? NSRegularExpression(pattern: #"\[\d{1,2}:\d{2}(?:\.\d{1,2})?\]"#) else {
             return lrc
         }
         let ns = lrc as NSString
