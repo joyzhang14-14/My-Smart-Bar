@@ -62,6 +62,7 @@ struct ContentView: View {
     @Default(.showNotHumanFace) var showNotHumanFace
 
     @Default(.extendedLyricsShowcase) var extendedLyricsShowcase
+    @Default(.extendedLyricsAlignment) var extendedLyricsAlignment
 
     @Default(.swipeDirection) var swipeDirection
     @Default(.skipIconSide) var skipIconSide
@@ -604,15 +605,31 @@ struct ContentView: View {
 
             ZStack(alignment: .center) {
                 if !line.isEmpty {
-                    MarqueeText(
-                        .constant(line),
-                        font: .subheadline,
-                        nsFont: .subheadline,
-                        textColor: .gray,
-                        frameWidth: width
-                    )
-                    .font(.subheadline)
-                    .lineLimit(1)
+                    // 用户在 Settings → Appearance → "Lyrics alignment" 选风格：
+                    //   - leftMarquee: MarqueeText 左对齐 + 跑马灯（原行为）
+                    //   - center: Text 居中 + 截断
+                    Group {
+                        switch extendedLyricsAlignment {
+                        case .leftMarquee:
+                            MarqueeText(
+                                .constant(line),
+                                font: .subheadline,
+                                nsFont: .subheadline,
+                                textColor: .gray,
+                                frameWidth: width
+                            )
+                            .font(.subheadline)
+                            .lineLimit(1)
+                        case .center:
+                            Text(line)
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: width, alignment: .center)
+                        }
+                    }
                     .id(line)
                     .transition(.asymmetric(
                         insertion: .move(edge: .bottom).combined(with: .opacity),

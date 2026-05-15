@@ -82,6 +82,13 @@ enum SkipIconSide: String, CaseIterable, Identifiable, Defaults.Serializable {
     var id: String { self.rawValue }
 }
 
+// 闭合 notch 下方常驻歌词条的对齐 / 字号风格
+enum LyricsAlignmentMode: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case leftMarquee = "Left + marquee"  // 小字号，溢出滚动（原行为）
+    case center = "Centered"             // 大字号，居中，溢出截断
+    var id: String { self.rawValue }
+}
+
 extension Defaults.Keys {
     // MARK: General
     static let menubarIcon = Key<Bool>("menubarIcon", default: true)
@@ -151,6 +158,10 @@ extension Defaults.Keys {
     static let showShuffleAndRepeat = Key<Bool>("showShuffleAndRepeat", default: false)
     static let enableLyrics = Key<Bool>("enableLyrics", default: false)
     static let extendedLyricsShowcase = Key<Bool>("extendedLyricsShowcase", default: false)
+    static let extendedLyricsAlignment = Key<LyricsAlignmentMode>(
+        "extendedLyricsAlignment",
+        default: .center
+    )
     static let musicControlSlots = Key<[MusicControlButton]>(
         "musicControlSlots",
         default: MusicControlButton.defaultLayout

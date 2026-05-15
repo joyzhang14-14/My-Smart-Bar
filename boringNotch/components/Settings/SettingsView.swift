@@ -1224,6 +1224,7 @@ struct Appearance: View {
     @Default(.useMusicVisualizer) var useMusicVisualizer
     @Default(.customVisualizers) var customVisualizers
     @Default(.selectedVisualizer) var selectedVisualizer
+    @Default(.extendedLyricsAlignment) var extendedLyricsAlignment
 
     let icons: [String] = ["logo2"]
     @State private var selectedIcon: String = "logo2"
@@ -1259,6 +1260,12 @@ struct Appearance: View {
                         customBadge(text: "Beta")
                     }
                 }
+                Picker("Lyrics alignment", selection: $extendedLyricsAlignment) {
+                    ForEach(LyricsAlignmentMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .disabled(!Defaults[.extendedLyricsShowcase])
                 Picker("Slider color", selection: $sliderColor) {
                     ForEach(SliderColorEnum.allCases, id: \.self) { option in
                         Text(option.rawValue)
