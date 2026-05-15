@@ -172,15 +172,8 @@ struct ContentView: View {
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
                             .animation(.smooth, value: gestureProgress)
                     }
-                    // 当下方常驻歌词条显示时，把 hit-test 区域限制在原 live activity 高度，
-                    // 让歌词行成为 passive 显示——hover / 点击 / 手势都不会触发。
-                    .contentShape(
-                        TopHoverShape(
-                            height: shouldShowExtendedLyrics
-                                ? vm.effectiveClosedNotchHeight
-                                : .greatestFiniteMagnitude
-                        )
-                    )
+                    // 默认 hit-test 形状即可。ExtendedLyricsBar 自身 allowsHitTesting(false)，
+                    // 不会偷 hover/手势。
                     .onHover { hovering in
                         handleHover(hovering)
                     }
