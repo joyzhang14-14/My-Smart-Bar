@@ -12,16 +12,6 @@
 
 ---
 
-## Features
-
-- **Now Playing** — playback controls with synced lyrics for Spotify (Web API) and Apple Music
-- **Shelf** — drag files into the notch as a temporary clipboard
-- **HUD** — replaces the macOS volume / brightness / keyboard backlight overlay
-- **Battery** — charging state and percentage at a glance
-- **Camera mirror** — peek at the front camera under the notch
-- **Calendar** — quick view of upcoming events
-- **Gestures** — swipe to skip tracks, scroll to adjust volume
-
 ## Install
 
 1. Download `MySmartBar-X.Y.Z.dmg` from [the latest release](https://github.com/joyzhang14-14/My-Smart-Bar/releases/latest).
@@ -53,20 +43,7 @@ open MySmartBar.xcodeproj
 # Cmd+R to run
 ```
 
-## Cutting a release
-
-Local Makefile-driven pipeline (build → sign → DMG + ZIP → signed appcast → GitHub release):
-
-```bash
-make app 1.2.0
-```
-
-Requires the `MySmartBarDev` code-signing certificate in your keychain and a one-time `gh auth login`. See [`scripts/release.sh`](scripts/release.sh) for the full flow.
-
 ## Credits
 
 Forked from [TheBoredTeam/boring.notch](https://github.com/TheBoredTeam/boring.notch) — the upstream team built the entire foundation. This fork is a personal flavor with its own signing identity, release pipeline, and icon.
 
-## License
-
-Same as upstream — see [LICENSE](LICENSE).
