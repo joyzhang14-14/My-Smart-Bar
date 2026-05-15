@@ -697,9 +697,9 @@ struct Media: View {
 
             Section {
                 HStack {
-                    Text("NetEase API base URL")
+                    Text("Custom NetEase API URL")
                     Spacer(minLength: 16)
-                    TextField("http://localhost:3000", text: $neteaseAPIBaseURL)
+                    TextField("Leave blank for built-in", text: $neteaseAPIBaseURL)
                         .textFieldStyle(.roundedBorder)
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 300)
@@ -707,7 +707,7 @@ struct Media: View {
             } header: {
                 Text("Lyrics fallback")
             } footer: {
-                Text("Used when LRCLIB returns nothing or fails. Self-host the NetEase Cloud Music API (api-enhanced) — e.g. `docker run -d -p 3000:3000 moefurina/ncm-api`. Leave blank to disable fallback.")
+                Text("Used when LRCLIB fails. Leaving this blank uses the built-in NetEase weapi client (zero setup, recommended). Or point it at your own self-hosted api-enhanced server (e.g. `http://localhost:3000`).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1478,6 +1478,31 @@ struct Appearance: View {
                 HStack {
                     Text("Additional features")
                 }
+            }
+
+            Section {
+                Picker("Swipe direction", selection: Binding(
+                    get: { Defaults[.swipeDirection] },
+                    set: { Defaults[.swipeDirection] = $0 }
+                )) {
+                    ForEach(SwipeDirection.allCases) { dir in
+                        Text(dir.rawValue).tag(dir)
+                    }
+                }
+                Picker("Skip icon side", selection: Binding(
+                    get: { Defaults[.skipIconSide] },
+                    set: { Defaults[.skipIconSide] = $0 }
+                )) {
+                    ForEach(SkipIconSide.allCases) { side in
+                        Text(side.rawValue).tag(side)
+                    }
+                }
+            } header: {
+                Text("Skip gesture")
+            } footer: {
+                Text("Direction sets which way swipes go next/previous. Icon side sets whether the feedback flashes on the same side as the swipe or the opposite side.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .accentColor(.effectiveAccent)

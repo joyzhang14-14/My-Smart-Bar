@@ -68,6 +68,20 @@ enum OptionKeyAction: String, CaseIterable, Identifiable, Defaults.Serializable 
     var id: String { self.rawValue }
 }
 
+// 滑动手势的方向语义：左滑/右滑各对应哪首
+enum SwipeDirection: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case leftIsNext = "Left = Next track"
+    case leftIsPrevious = "Left = Previous track"
+    var id: String { self.rawValue }
+}
+
+// 切歌反馈图标显示在动作的同侧还是反侧
+enum SkipIconSide: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case opposite = "Opposite side"
+    case sameAsSwipe = "Same as swipe"
+    var id: String { self.rawValue }
+}
+
 extension Defaults.Keys {
     // MARK: General
     static let menubarIcon = Key<Bool>("menubarIcon", default: true)
@@ -122,6 +136,8 @@ extension Defaults.Keys {
     static let closeGestureEnabled = Key<Bool>("closeGestureEnabled", default: true)
     static let skipGestureEnabled = Key<Bool>("skipGestureEnabled", default: true)
     static let gestureSensitivity = Key<CGFloat>("gestureSensitivity", default: 200.0)
+    static let swipeDirection = Key<SwipeDirection>("swipeDirection", default: .leftIsNext)
+    static let skipIconSide = Key<SkipIconSide>("skipIconSide", default: .opposite)
 
     // MARK: Spotify
     // Client ID 明文存于 Defaults（Spotify 文档允许公开）；Client Secret 走 Keychain。
@@ -135,10 +151,10 @@ extension Defaults.Keys {
     static let showShuffleAndRepeat = Key<Bool>("showShuffleAndRepeat", default: false)
     static let enableLyrics = Key<Bool>("enableLyrics", default: false)
     static let extendedLyricsShowcase = Key<Bool>("extendedLyricsShowcase", default: false)
-    // NetEase Cloud Music API (api-enhanced) base URL，用作 lrclib 失败时的歌词 fallback。
-    // 默认指向本机自部署（docker run -d -p 3000:3000 moefurina/ncm-api）。
-    // 留空则禁用此 fallback。
-    static let neteaseAPIBaseURL = Key<String>("neteaseAPIBaseURL", default: "http://localhost:3000")
+    // NetEase Cloud Music API (api-enhanced) 自部署 base URL，可选。
+    // 留空 = 走 app 内置的 NetEase weapi 原生客户端（推荐，零部署）。
+    // 填写 = 走指定的 api-enhanced server（http://localhost:3000 之类）。
+    static let neteaseAPIBaseURL = Key<String>("neteaseAPIBaseURL", default: "")
     static let musicControlSlots = Key<[MusicControlButton]>(
         "musicControlSlots",
         default: MusicControlButton.defaultLayout

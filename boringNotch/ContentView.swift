@@ -45,12 +45,15 @@ struct ContentView: View {
     @State private var chinPulseWidth: CGFloat = 0
     @State private var chinPulseSide: Int = 0
 
-    // 切歌方向图标：每次触发让 trigger +1 推动 .symbolEffect(.bounce) 弹一次，
-    // visible 在 600ms 后归 false 让图标淡出
-    @State private var skipLeftIconVisible: Bool = false
-    @State private var skipRightIconVisible: Bool = false
-    @State private var skipLeftIconTrigger: Int = 0
-    @State private var skipRightIconTrigger: Int = 0
+    // 切歌反馈图标：visible+trigger 推动 .symbolEffect(.bounce) 弹一次后淡出。
+    // 用 "左 panel / 右 panel" 命名（panel 指 album art / visualizer 容器），
+    // 跟"哪边滑动"解耦——具体哪侧亮、显示什么 symbol 都由 setting + handler 决定。
+    @State private var skipLeftPanelVisible: Bool = false
+    @State private var skipRightPanelVisible: Bool = false
+    @State private var skipLeftPanelTrigger: Int = 0
+    @State private var skipRightPanelTrigger: Int = 0
+    @State private var skipLeftPanelSymbol: String = "backward.end.fill"
+    @State private var skipRightPanelSymbol: String = "forward.end.fill"
 
     @Namespace var albumArtNamespace
 
@@ -59,6 +62,9 @@ struct ContentView: View {
     @Default(.showNotHumanFace) var showNotHumanFace
 
     @Default(.extendedLyricsShowcase) var extendedLyricsShowcase
+
+    @Default(.swipeDirection) var swipeDirection
+    @Default(.skipIconSide) var skipIconSide
 
     // Shared interactive spring for movement/resizing to avoid conflicting animations
     private let animationSpring = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0)
@@ -466,11 +472,11 @@ struct ContentView: View {
                     height: max(0, vm.effectiveClosedNotchHeight - 12)
                 )
                 .overlay {
-                    if skipRightIconVisible {
-                        Image(systemName: "backward.end.fill")
+                    if skipLeftPanelVisible {
+                        Image(systemName: skipLeftPanelSymbol)
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(.white)
-                            .symbolEffect(.bounce, value: skipRightIconTrigger)
+                            .symbolEffect(.bounce, value: skipLeftPanelTrigger)
                             .transition(.opacity)
                     }
                 }
@@ -555,11 +561,11 @@ struct ContentView: View {
                 alignment: .center
             )
             .overlay {
-                if skipLeftIconVisible {
-                    Image(systemName: "forward.end.fill")
+                if skipRightPanelVisible {
+                    Image(systemName: skipRightPanelSymbol)
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(.white)
-                        .symbolEffect(.bounce, value: skipLeftIconTrigger)
+                        .symbolEffect(.bounce, value: skipRightPanelTrigger)
                         .transition(.opacity)
                 }
             }
@@ -759,22 +765,14 @@ struct ContentView: View {
         // 单次手势内只触发一次切歌。.changed 阶段累计达阈值即触发。
         if !skipLeftTriggered && translation > Defaults[.gestureSensitivity] {
             if Defaults[.enableHaptics] { haptics.toggle() }
-            MusicManager.shared.nextTrack()
             skipLeftTriggered = true
+            performSkip(isLeftSwipe: true)
 
             // 专辑封面向左短暂位移再回弹
             withAnimation(.easeOut(duration: 0.09)) { leftSkipOffset = -skipItemWidthPulse }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(90))
                 withAnimation(animationSpring) { leftSkipOffset = 0 }
-            }
-
-            // backward.end.fill 图标弹一下后淡出（symbolEffect 用 trigger 递增触发）
-            withAnimation(.easeOut(duration: 0.15)) { skipLeftIconVisible = true }
-            skipLeftIconTrigger &+= 1
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(600))
-                withAnimation(.easeIn(duration: 0.2)) { skipLeftIconVisible = false }
             }
 
             // 闭合状态下，notch 横向拉伸脉冲
@@ -804,21 +802,13 @@ struct ContentView: View {
 
         if !skipRightTriggered && translation > Defaults[.gestureSensitivity] {
             if Defaults[.enableHaptics] { haptics.toggle() }
-            MusicManager.shared.previousTrack()
             skipRightTriggered = true
+            performSkip(isLeftSwipe: false)
 
             withAnimation(.easeOut(duration: 0.09)) { rightSkipOffset = skipItemWidthPulse }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(90))
                 withAnimation(animationSpring) { rightSkipOffset = 0 }
-            }
-
-            // forward.end.fill 图标弹一下后淡出
-            withAnimation(.easeOut(duration: 0.15)) { skipRightIconVisible = true }
-            skipRightIconTrigger &+= 1
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(600))
-                withAnimation(.easeIn(duration: 0.2)) { skipRightIconVisible = false }
             }
 
             if vm.notchState == .closed {
@@ -829,6 +819,41 @@ struct ContentView: View {
                     withAnimation(animationSpring) { chinPulseWidth = 0 }
                     chinPulseSide = 0
                 }
+            }
+        }
+    }
+
+    // 由 swipeDirection / skipIconSide 决定：实际调 next 还是 prev、图标 symbol、显示在哪侧 panel。
+    private func performSkip(isLeftSwipe: Bool) {
+        // 1. 确定动作：next 或 previous
+        let isNext: Bool = (isLeftSwipe == (swipeDirection == .leftIsNext))
+        if isNext {
+            MusicManager.shared.nextTrack()
+        } else {
+            MusicManager.shared.previousTrack()
+        }
+
+        // 2. 图标 symbol 跟动作绑定（next → forward；previous → backward）
+        let symbol = isNext ? "forward.end.fill" : "backward.end.fill"
+
+        // 3. 显示侧：opposite 模式下图标显示在动作的反侧
+        let showOnRightPanel = (skipIconSide == .opposite) ? isLeftSwipe : !isLeftSwipe
+
+        if showOnRightPanel {
+            skipRightPanelSymbol = symbol
+            withAnimation(.easeOut(duration: 0.15)) { skipRightPanelVisible = true }
+            skipRightPanelTrigger &+= 1
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                withAnimation(.easeIn(duration: 0.2)) { skipRightPanelVisible = false }
+            }
+        } else {
+            skipLeftPanelSymbol = symbol
+            withAnimation(.easeOut(duration: 0.15)) { skipLeftPanelVisible = true }
+            skipLeftPanelTrigger &+= 1
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                withAnimation(.easeIn(duration: 0.2)) { skipLeftPanelVisible = false }
             }
         }
     }
