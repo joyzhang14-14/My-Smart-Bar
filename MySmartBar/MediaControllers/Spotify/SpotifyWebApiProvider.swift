@@ -67,12 +67,12 @@ final class SpotifyWebApiProvider: SpotifyProvider {
         _ = await sendCommand("/v1/me/player/volume?volume_percent=\(clamped)", method: "PUT")
     }
 
-    func setShuffle(_ enabled: Bool) async {
-        _ = await sendCommand("/v1/me/player/shuffle?state=\(enabled)", method: "PUT")
+    func setShuffle(_ enabled: Bool) async -> Bool {
+        await sendCommand("/v1/me/player/shuffle?state=\(enabled)", method: "PUT")
     }
 
-    func setRepeatMode(_ mode: RepeatMode) async {
-        _ = await sendCommand("/v1/me/player/repeat?state=\(mode.spotifyAPIValue)", method: "PUT")
+    func setRepeatMode(_ mode: RepeatMode) async -> Bool {
+        await sendCommand("/v1/me/player/repeat?state=\(mode.spotifyAPIValue)", method: "PUT")
     }
 
     func isTrackLiked(id: String) async -> Bool {

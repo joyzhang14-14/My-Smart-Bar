@@ -113,7 +113,13 @@ final class SpotifyController: MediaControllerProtocol {
         NSLog("[Spotify] toggleShuffle invoked: %@ -> %@",
               playbackState.isShuffled ? "on" : "off",
               target ? "on" : "off")
-        await stateProvider().setShuffle(target)
+        let provider = await stateProvider()
+        let ok = await provider.setShuffle(target)
+        // Web API 写失败（通常是 404 No Active Device）→ 直接走 AppleScript 给桌面 App 发指令
+        if !ok, provider !== appleScriptProvider {
+            NSLog("[Spotify] toggleShuffle fell back to AppleScript")
+            _ = await appleScriptProvider.setShuffle(target)
+        }
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
@@ -129,7 +135,13 @@ final class SpotifyController: MediaControllerProtocol {
         NSLog("[Spotify] toggleRepeat invoked: %@ -> %@",
               String(describing: playbackState.repeatMode),
               String(describing: next))
-        await stateProvider().setRepeatMode(next)
+        let provider = await stateProvider()
+        let ok = await provider.setRepeatMode(next)
+        // Web API 写失败（通常是 404 No Active Device）→ 走 AppleScript（只支持 bool repeat）
+        if !ok, provider !== appleScriptProvider {
+            NSLog("[Spotify] toggleRepeat fell back to AppleScript (bool repeat only)")
+            _ = await appleScriptProvider.setRepeatMode(next)
+        }
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
