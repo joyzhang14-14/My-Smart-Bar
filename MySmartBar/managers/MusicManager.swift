@@ -51,6 +51,10 @@ class MusicManager: ObservableObject {
     @Published var currentLyrics: String = ""
     @Published var isFetchingLyrics: Bool = false
     @Published var syncedLyrics: [(time: Double, text: String)] = []
+    /// 这批 syncedLyrics 是为哪首歌（"title|artist"）抓的。UI 渲染前会比对当前 songTitle/artistName
+    /// 拼出来的 key，对不上就拒显——这是写入侧 race guard 之外的最后一道闸，专门挡 MediaRemote 元数据
+    /// 滞后或 SwiftUI 渲染缓存导致的"歌词归属错歌"。
+    @Published var syncedLyricsKey: String? = nil
     @Published var canFavoriteTrack: Bool = false
     @Published var isFavoriteTrack: Bool = false
 
@@ -377,6 +381,7 @@ class MusicManager: ObservableObject {
                 self.isFetchingLyrics = false
                 self.currentLyrics = ""
                 self.syncedLyrics = []
+                self.syncedLyricsKey = nil
                 self.lastLyricsFetchKey = nil
             }
             return
@@ -396,6 +401,7 @@ class MusicManager: ObservableObject {
         let isNewTrack = lastLyricsFetchKey != key
         if isNewTrack {
             self.syncedLyrics = []
+            self.syncedLyricsKey = nil
             self.currentLyrics = ""
         }
         lastLyricsFetchKey = key
@@ -441,6 +447,7 @@ class MusicManager: ObservableObject {
                         self.currentLyrics = lyricsString.trimmingCharacters(in: .whitespacesAndNewlines)
                         self.isFetchingLyrics = false
                         self.syncedLyrics = []
+                        self.syncedLyricsKey = nil
                         return
                     }
                 } catch {
@@ -501,6 +508,7 @@ class MusicManager: ObservableObject {
         NSLog("[Lyrics] no usable synced lyrics for \"\(cleanTitle)\" - \"\(cleanArtist)\" (lrclib + qq + netease all rejected)")
         self.currentLyrics = ""
         self.syncedLyrics = []
+        self.syncedLyricsKey = nil
         self.isFetchingLyrics = false
     }
 
@@ -521,6 +529,7 @@ class MusicManager: ObservableObject {
             return false
         }
         self.syncedLyrics = lines
+        self.syncedLyricsKey = expectedKey
         self.currentLyrics = ""
         self.isFetchingLyrics = false
         return true
@@ -587,6 +596,10 @@ class MusicManager: ObservableObject {
 
     func lyricLine(at elapsed: Double) -> String {
         guard !syncedLyrics.isEmpty else { return currentLyrics }
+        // Double-check：syncedLyrics 是给 syncedLyricsKey 那首歌的，必须和当前 songTitle/artistName
+        // 拼出来的 key 完全一致才能放出去。挡 MediaRemote 元数据滞后 / SwiftUI 渲染缓存导致的"歌词归属错歌"。
+        let currentKey = "\(songTitle)|\(artistName)"
+        guard syncedLyricsKey == currentKey else { return "" }
         // Pre-roll buffer：第一行歌词之前的 intro 期返回空字符串，否则长前奏的歌会把
         // 第一行歌词钉在屏幕上 10+ 秒才轮到它真正唱出来。注意不能返回 currentLyrics——
         // 当 LRCLIB 只给了 synced 没给 plain 时，currentLyrics 是整段带时间戳的原始 LRC，
