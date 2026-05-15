@@ -111,11 +111,15 @@ enum QQMusicLyricsClient {
             }
         }
 
-        if let best = best {
+        // 同 NetEase：title 必须命中（+10），否则当 miss，避免给同名翻唱的歌词。
+        if let best = best, best.score >= 10 {
             NSLog("[Lyrics][QQ] picked mid=\(best.mid) score=\(best.score) — \"\(best.name)\" by \"\(best.artists)\"")
             return best.mid
         }
-        return songs.first?["songmid"] as? String
+        if let best = best {
+            NSLog("[Lyrics][QQ] rejected best candidate (score=\(best.score) < 10) — \"\(best.name)\" by \"\(best.artists)\"")
+        }
+        return nil
     }
 
     // MARK: - Lyric

@@ -153,12 +153,17 @@ enum NetEaseLyricsClient {
             }
         }
 
-        if let best = best {
+        // 阈值：title 必须命中（+10），否则视为没有合理匹配，整个 source 当 miss
+        // 处理。宁可不显示，也不要给一首完全不相干的歌的歌词（之前会显示同名翻唱、
+        // 同时长不同曲等"假装匹配"）。
+        if let best = best, best.score >= 10 {
             NSLog("[Lyrics][NetEase native] picked id=\(best.id) score=\(best.score) — \"\(best.name)\" by \"\(best.artists)\"")
             return best.id
         }
-        // 兜底：全部解析失败时返回第一条 id
-        return (songs.first?["id"]) as? Int
+        if let best = best {
+            NSLog("[Lyrics][NetEase native] rejected best candidate (score=\(best.score) < 10) — \"\(best.name)\" by \"\(best.artists)\"")
+        }
+        return nil
     }
 
     private static func normalizeForMatch(_ s: String) -> String {
