@@ -464,7 +464,11 @@ class MusicManager: ObservableObject {
         }
 
         // 2) Fallback：app 内置的 NetEase weapi 原生客户端。
-        if let result = await NetEaseLyricsClient.fetchLyrics(title: cleanTitle, artist: cleanArtist) {
+        if let result = await NetEaseLyricsClient.fetchLyrics(
+            title: cleanTitle,
+            artist: cleanArtist,
+            durationSeconds: self.songDuration
+        ) {
             applyLyricsResult(plain: result.plain, synced: result.synced)
             return
         }

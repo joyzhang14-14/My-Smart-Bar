@@ -17,8 +17,8 @@ enum NetEaseLyricsClient {
     /// 给定歌名 + 歌手名，返回（plain, synced）歌词文本。
     /// synced 已经过 normalizeNetEaseLRC 转换成纯净的 `[mm:ss.xx]Line` 标准 LRC，
     /// 调用方（MusicManager.parseLRC）可以按统一的标准格式处理，不需要懂 NetEase 方言。
-    static func fetchLyrics(title: String, artist: String) async -> (plain: String, synced: String)? {
-        guard let songID = await searchSongID(title: title, artist: artist) else {
+    static func fetchLyrics(title: String, artist: String, durationSeconds: Double = 0) async -> (plain: String, synced: String)? {
+        guard let songID = await searchSongID(title: title, artist: artist, durationSeconds: durationSeconds) else {
             NSLog("[Lyrics][NetEase native] no song match for \"\(title)\" - \"\(artist)\"")
             return nil
         }
@@ -75,7 +75,7 @@ enum NetEaseLyricsClient {
 
     // MARK: - Endpoints
 
-    private static func searchSongID(title: String, artist: String) async -> Int? {
+    private static func searchSongID(title: String, artist: String, durationSeconds: Double) async -> Int? {
         // 用新版 cloudsearch/pc 端点，不是老的 search/get / cloudsearch/get/web。
         // 老端点对未登录请求会返回 code:50000005（反爬）。
         let query = artist.isEmpty ? title : "\(title) \(artist)"
@@ -96,13 +96,16 @@ enum NetEaseLyricsClient {
               !songs.isEmpty else {
             return nil
         }
-        return pickBestMatch(from: songs, title: title, artist: artist)
+        return pickBestMatch(from: songs, title: title, artist: artist, durationSeconds: durationSeconds)
     }
 
     /// 在 NetEase 返回的多条候选里挑最匹配的一首。
-    /// 打分：歌名包含/被包含 +10；用户指定的每个艺人在结果艺人列表里能找到 +1。
+    /// 打分：歌名包含/被包含 +10；用户指定的每个艺人在结果艺人列表里能找到 +1；
+    /// 候选时长与当前播放接近 +5（≤3s 偏差）或 +2（≤10s 偏差）——这一项对挑对版本至关重要：
+    /// "Die With A Smile" 单曲版 vs "Die With A Smile (Live)" 时长往往差几十秒，
+    /// 没有时长卡 LRC 可能选到错版本，整段时间线就全偏。
     /// 全 0 分时（极少见）退化为第一条，免得无歌词。
-    private static func pickBestMatch(from songs: [[String: Any]], title: String, artist: String) -> Int? {
+    private static func pickBestMatch(from songs: [[String: Any]], title: String, artist: String, durationSeconds: Double) -> Int? {
         let normalizedTitle = normalizeForMatch(title)
         // "Lady Gaga, Bruno Mars" → ["lady gaga", "bruno mars"]
         let userArtists = artist
@@ -136,6 +139,13 @@ enum NetEaseLyricsClient {
                 if normalizedSongArtists.contains(where: { $0.contains(ua) || ua.contains($0) }) {
                     score += 1
                 }
+            }
+            // 时长匹配：dt 字段是毫秒整数
+            if durationSeconds > 0, let dt = song["dt"] as? Int {
+                let candidateSec = Double(dt) / 1000.0
+                let diff = abs(candidateSec - durationSeconds)
+                if diff <= 3 { score += 5 }
+                else if diff <= 10 { score += 2 }
             }
 
             if best == nil || score > best!.score {
