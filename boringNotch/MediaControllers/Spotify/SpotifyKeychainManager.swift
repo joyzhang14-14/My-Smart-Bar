@@ -55,13 +55,20 @@ final class SpotifyKeychainManager {
     }
 
     // MARK: - Keychain Helpers
+    // 强制走 Data Protection keychain（沙盒私有分区）：
+    // 沙盒 App 在 ad-hoc 签名下读 login keychain 会反复弹"输入密码"框，
+    // 即使 Always Allow 也会因为每次 build 签名不稳定而失效。
+    // Data Protection keychain 与签名 identity 无关，沙盒 App 自己访问不弹框。
+    private static let baseQuery: [CFString: Any] = [
+        kSecClass: kSecClassGenericPassword,
+        kSecUseDataProtectionKeychain: true
+    ]
+
     private func save(key: String, value: String) {
         let data = Data(value.utf8)
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrAccount: key,
-            kSecValueData: data
-        ]
+        var query = Self.baseQuery
+        query[kSecAttrAccount] = key
+        query[kSecValueData] = data
         SecItemDelete(query as CFDictionary)
         let status = SecItemAdd(query as CFDictionary, nil)
         if status != errSecSuccess {
@@ -70,12 +77,10 @@ final class SpotifyKeychainManager {
     }
 
     private func read(key: String) -> String? {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrAccount: key,
-            kSecReturnData: true,
-            kSecMatchLimit: kSecMatchLimitOne
-        ]
+        var query = Self.baseQuery
+        query[kSecAttrAccount] = key
+        query[kSecReturnData] = true
+        query[kSecMatchLimit] = kSecMatchLimitOne
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
@@ -88,10 +93,8 @@ final class SpotifyKeychainManager {
     }
 
     private func delete(key: String) {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrAccount: key
-        ]
+        var query = Self.baseQuery
+        query[kSecAttrAccount] = key
         SecItemDelete(query as CFDictionary)
     }
 }
