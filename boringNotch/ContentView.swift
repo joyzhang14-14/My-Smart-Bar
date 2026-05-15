@@ -467,7 +467,7 @@ struct ContentView: View {
                 )
                 .overlay {
                     if skipRightIconVisible {
-                        Image(systemName: "forward.end.fill")
+                        Image(systemName: "backward.end.fill")
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(.white)
                             .symbolEffect(.bounce, value: skipRightIconTrigger)
@@ -556,7 +556,7 @@ struct ContentView: View {
             )
             .overlay {
                 if skipLeftIconVisible {
-                    Image(systemName: "backward.end.fill")
+                    Image(systemName: "forward.end.fill")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(.white)
                         .symbolEffect(.bounce, value: skipLeftIconTrigger)
