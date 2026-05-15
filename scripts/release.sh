@@ -34,7 +34,7 @@ SPARKLE_BIN=$(find "$HOME/Library/Developer/Xcode/DerivedData" \
 [ -d "$SPARKLE_BIN" ] || { echo "❌ Sparkle tools not found — open Xcode and build once first"; exit 1; }
 
 echo "==> Bumping version: $VERSION (build $BUILD)..."
-PBXPROJ="boringNotch.xcodeproj/project.pbxproj"
+PBXPROJ="MySmartBar.xcodeproj/project.pbxproj"
 sed -i '' -E "s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = $VERSION;/g" "$PBXPROJ"
 sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = $BUILD;/g" "$PBXPROJ"
 
@@ -42,8 +42,8 @@ echo "==> Building Release config (no signing during build)..."
 BUILD_DIR="$REPO_ROOT/build"
 rm -rf "$BUILD_DIR"
 xcodebuild \
-  -project boringNotch.xcodeproj \
-  -scheme boringNotch \
+  -project MySmartBar.xcodeproj \
+  -scheme MySmartBar \
   -configuration Release \
   -derivedDataPath "$BUILD_DIR" \
   CODE_SIGN_IDENTITY="-" \
@@ -51,7 +51,7 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   clean build 2>&1 | tail -20
 
-APP="$BUILD_DIR/Build/Products/Release/boringNotch.app"
+APP="$BUILD_DIR/Build/Products/Release/MySmartBar.app"
 [ -d "$APP" ] || { echo "❌ build failed: $APP not found"; exit 1; }
 
 echo "==> Signing app..."

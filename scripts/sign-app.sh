@@ -1,6 +1,6 @@
 #!/bin/bash
-# 分层签名 boringNotch.app（先签内嵌组件，最后签外壳）
-# 用法: ./scripts/sign-app.sh /path/to/boringNotch.app
+# 分层签名 MySmartBar.app（先签内嵌组件，最后签外壳）
+# 用法: ./scripts/sign-app.sh /path/to/MySmartBar.app
 set -euo pipefail
 
 APP="${1:-}"
@@ -14,7 +14,7 @@ BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Content
 TMP_ENT=$(mktemp -t app_ent).plist
 trap 'rm -f "$TMP_ENT"' EXIT
 sed "s|\$(PRODUCT_BUNDLE_IDENTIFIER)|${BUNDLE_ID}|g" \
-  "$REPO_ROOT/boringNotch/boringNotch.entitlements" > "$TMP_ENT"
+  "$REPO_ROOT/MySmartBar/MySmartBar.entitlements" > "$TMP_ENT"
 
 SP="$APP/Contents/Frameworks/Sparkle.framework"
 echo "==> Signing Sparkle internals..."
@@ -30,8 +30,8 @@ codesign -f -s "$ID" "$APP/Contents/Frameworks/MediaRemoteAdapter.framework"
 
 echo "==> Signing XPC helper..."
 codesign -f -s "$ID" \
-  --entitlements "$REPO_ROOT/BoringNotchXPCHelper/BoringNotchXPCHelper.entitlements" \
-  "$APP/Contents/XPCServices/BoringNotchXPCHelper.xpc"
+  --entitlements "$REPO_ROOT/MySmartBarXPCHelper/MySmartBarXPCHelper.entitlements" \
+  "$APP/Contents/XPCServices/MySmartBarXPCHelper.xpc"
 
 echo "==> Signing main app..."
 codesign -f -s "$ID" --entitlements "$TMP_ENT" "$APP"

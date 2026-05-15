@@ -41,7 +41,7 @@ Requires **Xcode 16+** on **macOS 14+**.
 ```bash
 git clone https://github.com/joyzhang14-14/My-Smart-Bar.git
 cd My-Smart-Bar
-open boringNotch.xcodeproj
+open MySmartBar.xcodeproj
 # Cmd+R to run
 ```
 
