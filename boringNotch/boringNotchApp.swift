@@ -281,6 +281,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
 
+        // 如果用户之前设过自定义图标，启动时恢复
+        CustomAppIconManager.shared.applyOnLaunchIfEnabled()
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(screenConfigurationDidChange),

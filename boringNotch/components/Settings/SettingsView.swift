@@ -1527,7 +1527,9 @@ struct Advanced: View {
     @Default(.extendHoverArea) var extendHoverArea
     @Default(.showOnLockScreen) var showOnLockScreen
     @Default(.hideFromScreenRecording) var hideFromScreenRecording
-    
+    @Default(.customAppIconEnabled) var customAppIconEnabled
+
+    @ObservedObject private var iconManager = CustomAppIconManager.shared
     @State private var customAccentColor: Color = .accentColor
     @State private var selectedPresetColor: PresetAccentColor? = nil
     let icons: [String] = ["logo2"]
@@ -1681,47 +1683,98 @@ struct Advanced: View {
             }
             
             Section {
-                HStack {
-                    ForEach(icons, id: \.self) { icon in
-                        Spacer()
-                        VStack {
-                            Image(icon)
-                                .resizable()
-                                .frame(width: 80, height: 80)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20, style: .circular)
-                                        .strokeBorder(
-                                            icon == selectedIcon ? Color.effectiveAccent : .clear,
-                                            lineWidth: 2.5
-                                        )
-                                )
+                HStack(spacing: 24) {
+                    Spacer()
 
-                            Text("Default")
-                                .fontWeight(.medium)
-                                .font(.caption)
-                                .foregroundStyle(icon == selectedIcon ? .white : .secondary)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 3)
-                                .background(
-                                    Capsule()
-                                        .fill(icon == selectedIcon ? Color.effectiveAccent : .clear)
-                                )
-                        }
-                        .onTapGesture {
-                            withAnimation {
-                                selectedIcon = icon
+                    // Default tile (bundle icon)
+                    VStack {
+                        Image("logo2")
+                            .resizable()
+                            .frame(width: 80, height: 80)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20, style: .circular)
+                                    .strokeBorder(
+                                        !customAppIconEnabled ? Color.effectiveAccent : .clear,
+                                        lineWidth: 2.5
+                                    )
+                            )
+                        Text("Default")
+                            .fontWeight(.medium)
+                            .font(.caption)
+                            .foregroundStyle(!customAppIconEnabled ? .white : .secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(!customAppIconEnabled ? Color.effectiveAccent : .clear)
+                            )
+                    }
+                    .onTapGesture {
+                        withAnimation { iconManager.reset() }
+                    }
+
+                    // Custom tile (user-uploaded icon, or "+" placeholder)
+                    VStack {
+                        Group {
+                            if let custom = iconManager.currentCustomIcon {
+                                Image(nsImage: custom)
+                                    .resizable()
+                            } else {
+                                RoundedRectangle(cornerRadius: 20, style: .circular)
+                                    .fill(Color.gray.opacity(0.15))
+                                    .overlay(
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.title)
+                                            .foregroundStyle(.secondary)
+                                    )
                             }
-                            NSApp.applicationIconImage = NSImage(named: icon)
                         }
+                        .frame(width: 80, height: 80)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20, style: .circular)
+                                .strokeBorder(
+                                    customAppIconEnabled ? Color.effectiveAccent : .clear,
+                                    lineWidth: 2.5
+                                )
+                        )
+                        Text(customAppIconEnabled ? "Custom" : "Choose…")
+                            .fontWeight(.medium)
+                            .font(.caption)
+                            .foregroundStyle(customAppIconEnabled ? .white : .secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(customAppIconEnabled ? Color.effectiveAccent : .clear)
+                            )
+                    }
+                    .onTapGesture {
+                        if customAppIconEnabled, let custom = iconManager.currentCustomIcon {
+                            NSApp.applicationIconImage = custom
+                        } else {
+                            _ = iconManager.pickAndApply()
+                        }
+                    }
+
+                    Spacer()
+                }
+
+                if customAppIconEnabled {
+                    HStack {
+                        Spacer()
+                        Button("Choose new image…") {
+                            _ = iconManager.pickAndApply()
+                        }
+                        .controlSize(.small)
+                        Button("Reset to default") {
+                            withAnimation { iconManager.reset() }
+                        }
+                        .controlSize(.small)
                         Spacer()
                     }
                 }
-                .disabled(true)
             } header: {
-                HStack {
-                    Text("App icon")
-                    customBadge(text: "Coming soon")
-                }
+                Text("App icon")
             }
             
             Section {
