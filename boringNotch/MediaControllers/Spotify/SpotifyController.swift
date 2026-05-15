@@ -23,12 +23,9 @@ final class SpotifyController: MediaControllerProtocol {
 
     var supportsVolumeControl: Bool { true }
 
-    // 只要可能拿到 Web API（已授权或还能 refresh）就声明支持 Favorite，UI 才会显示 Like 按钮。
-    var supportsFavorite: Bool {
-        guard webApiProvider != nil else { return appleScriptProvider.supportsFavorite }
-        let keychain = SpotifyKeychainManager.shared
-        return keychain.isTokenValid || keychain.refreshToken != nil
-    }
+    // Like 通过 AppleScript like track 命令实现（add only），不依赖 Web API token，
+    // 因此 Spotify 模式下始终支持。
+    var supportsFavorite: Bool { true }
 
     private let appleScriptProvider: SpotifyProvider
     private let webApiProvider: SpotifyProvider?
@@ -86,15 +83,12 @@ final class SpotifyController: MediaControllerProtocol {
     // 其余播放控制（play/pause/next/previous/seek/volume）始终走 AppleScript，本地即时，不依赖网络。
 
     func setFavorite(_ favorite: Bool) async {
-        NSLog("[Spotify] setFavorite(%@) invoked", favorite ? "true" : "false")
-        guard let trackID = await currentTrackIDForFavoriteAction() else {
-            NSLog("[Spotify] setFavorite aborted: no track ID")
-            return
-        }
-        NSLog("[Spotify] setFavorite trackID=%@", trackID)
-        await stateProvider().setLiked(favorite, id: trackID)
-        try? await Task.sleep(for: commandUpdateDelay)
-        await updatePlaybackInfo()
+        // 走 AppleScript 而非 Web API：Spotify Development Mode 下 /v1/me/tracks 一律 403
+        // （即使 user-library-modify scope 拿到、user 加入 Users and Access 也不行）。
+        // AppleScript like track 由 Spotify 桌面端处理，会同步到服务端的 Liked Songs。
+        // 因为读不到 is_liked 状态，UI 心形永远显示空心 → 这里也只接受 add（liked=true）。
+        NSLog("[Spotify] setFavorite(%@) via AppleScript", favorite ? "true" : "false")
+        await appleScriptProvider.setLiked(favorite, id: "")
     }
 
     func play() async { await appleScriptProvider.play() }
@@ -241,8 +235,4 @@ final class SpotifyController: MediaControllerProtocol {
         return webApiProvider
     }
 
-    private func currentTrackIDForFavoriteAction() async -> String? {
-        let playerState = await stateProvider().getPlayerState()
-        return playerState.trackID.isEmpty ? nil : playerState.trackID
-    }
 }

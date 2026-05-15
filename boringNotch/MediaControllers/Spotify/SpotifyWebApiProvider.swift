@@ -12,14 +12,6 @@ final class SpotifyWebApiProvider: SpotifyProvider {
     private let session: URLSession
     private let baseURL = URL(string: "https://api.spotify.com")!
 
-    // isTrackLiked 缓存：避免每秒 polling 都打 /v1/me/tracks/contains。
-    // 只在 trackID 或 isPlaying 变化（或用户主动 setLiked 后失效）时重新查询。
-    private struct LikedCacheKey: Equatable {
-        let trackID: String
-        let isPlaying: Bool
-    }
-    private var likedCache: (key: LikedCacheKey, value: Bool)?
-
     init(auth: SpotifyAuthManager, session: URLSession = .shared) {
         self.auth = auth
         self.session = session
@@ -35,19 +27,9 @@ final class SpotifyWebApiProvider: SpotifyProvider {
         let item = response.item
         let trackID = item?.id ?? ""
 
-        let liked: Bool
-        if trackID.isEmpty {
-            liked = false
-        } else {
-            let key = LikedCacheKey(trackID: trackID, isPlaying: response.isPlaying)
-            if let cached = likedCache, cached.key == key {
-                liked = cached.value
-            } else {
-                liked = await isTrackLiked(id: trackID)
-                likedCache = (key, liked)
-            }
-        }
-
+        // is_liked 在 Spotify Development Mode 下 /v1/me/tracks/contains 始终 403，
+        // 改走 AppleScript add-only。这里固定为 false，UI 心形永远显示空心，
+        // 用户点击后 SpotifyController.setFavorite 走 AppleScript like track。
         return SpotifyPlayerState(
             isPlaying: response.isPlaying,
             trackName: item?.name ?? "Unknown",
@@ -60,7 +42,7 @@ final class SpotifyWebApiProvider: SpotifyProvider {
             repeatMode: RepeatMode.fromSpotifyState(response.repeatState),
             volume: response.device?.volumePercent ?? 50,
             artworkURL: item?.album.images.first?.url ?? "",
-            isLiked: liked
+            isLiked: false
         )
     }
 
@@ -104,13 +86,13 @@ final class SpotifyWebApiProvider: SpotifyProvider {
     }
 
     func setLiked(_ liked: Bool, id: String) async {
+        // 当前 SpotifyController 把 setFavorite 走 AppleScript 了，这里实际不会被调用。
+        // 保留实现以便未来申请到 Extended Quota Mode 后切回 Web API。
         let cleanID = normalizedTrackID(from: id)
         guard !cleanID.isEmpty else { return }
         let encoded = cleanID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? cleanID
         let method = liked ? "PUT" : "DELETE"
         _ = await sendCommand("/v1/me/tracks?ids=\(encoded)", method: method)
-        // 用户主动改变 like 状态后让缓存失效，下一次 getPlayerState 会拿到真实状态
-        likedCache = nil
     }
 
     // MARK: - Private
