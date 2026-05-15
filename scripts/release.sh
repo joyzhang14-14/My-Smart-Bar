@@ -78,9 +78,12 @@ git commit -m "chore(release): v${VERSION}"
 git push origin "$BRANCH"
 
 echo "==> Creating GitHub release..."
-gh release create "v${VERSION}" "Releases/$ZIP_NAME" \
-  --title "v${VERSION}" \
-  --notes "Release v${VERSION}"
+# 直接走 API 创建 release（gh release create 有个误报 workflow scope 的 bug）
+gh api -X POST "repos/${REPO_OWNER}/${REPO_NAME}/releases" \
+  -f tag_name="v${VERSION}" \
+  -f name="v${VERSION}" \
+  -f body="Release v${VERSION}" >/dev/null
+gh release upload "v${VERSION}" "Releases/$ZIP_NAME" -R "${REPO_OWNER}/${REPO_NAME}"
 
 echo ""
 echo "✅ Released v${VERSION}"
