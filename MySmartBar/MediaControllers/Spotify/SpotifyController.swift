@@ -147,7 +147,17 @@ final class SpotifyController: MediaControllerProtocol {
 
     func updatePlaybackInfo() async {
         let provider = await stateProvider()
-        let playerState = await provider.getPlayerState()
+        var playerState = await provider.getPlayerState()
+
+        // Web API /v1/me/player 在云端没把桌面端标成 active device 时会返 204，
+        // 解出来是默认值（trackName="Unknown", duration=0）。此时桌面 App 还在播，
+        // 回退到 AppleScript 直接问桌面 App 拿真实状态。
+        if playerState.duration == 0,
+           playerState.trackName == "Unknown",
+           isActive(),
+           provider !== appleScriptProvider {
+            playerState = await appleScriptProvider.getPlayerState()
+        }
 
         var state = PlaybackState(
             bundleIdentifier: "com.spotify.client",

@@ -3,7 +3,7 @@
 //  boringNotch
 //
 
-protocol SpotifyProvider {
+protocol SpotifyProvider: AnyObject {
     var supportsFavorite: Bool { get }
 
     func getPlayerState() async -> SpotifyPlayerState
