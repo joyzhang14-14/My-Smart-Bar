@@ -5,5 +5,15 @@
         <link>https://github.com/joyzhang14-14/My-Smart-Bar</link>
         <description>Updates for My Smart Bar.</description>
         <language>en</language>
+        <item>
+            <title>1.0.0</title>
+            <pubDate>Thu, 14 May 2026 23:49:12 -0400</pubDate>
+            <link>https://github.com/joyzhang14-14/My-Smart-Bar/releases</link>
+            <sparkle:version>10000</sparkle:version>
+            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/joyzhang14-14/My-Smart-Bar/releases/download/v1.0.0/MySmartBar-1.0.0.zip" length="8093298" type="application/octet-stream" sparkle:edSignature="2TFC42BxOh44TSyyo42+kMRVayMF7XG95+9dtdM7faPtt6G9koorMd1fYr9+JWa2eLuDJa58whHDTdPVpso5AA=="/>
+        </item>
     </channel>
 </rss>
