@@ -457,9 +457,12 @@ class MusicManager: ObservableObject {
         let cleanTitle = normalizedQuery(title)
         let cleanArtist = normalizedQuery(artist)
 
+        // 严格模式：每一家都必须能给出 ≥2 行带时间戳的同步歌词才算"成功"，
+        // 否则继续 fallback。无时间戳的 plain 文本一律不显示。
+
         // 1) 主源：LRCLIB（无需鉴权、稳定）。
-        if let result = await fetchFromLRCLIB(title: cleanTitle, artist: cleanArtist) {
-            applyLyricsResult(plain: result.plain, synced: result.synced)
+        if let result = await fetchFromLRCLIB(title: cleanTitle, artist: cleanArtist),
+           applyLyricsResult(plain: result.plain, synced: result.synced) {
             return
         }
 
@@ -468,8 +471,7 @@ class MusicManager: ObservableObject {
             title: cleanTitle,
             artist: cleanArtist,
             durationSeconds: self.songDuration
-        ) {
-            applyLyricsResult(plain: result.plain, synced: result.synced)
+        ), applyLyricsResult(plain: result.plain, synced: result.synced) {
             return
         }
 
@@ -478,24 +480,32 @@ class MusicManager: ObservableObject {
             title: cleanTitle,
             artist: cleanArtist,
             durationSeconds: self.songDuration
-        ) {
-            applyLyricsResult(plain: result.plain, synced: result.synced)
+        ), applyLyricsResult(plain: result.plain, synced: result.synced) {
             return
         }
 
         // 全部失败：清空。
-        NSLog("[Lyrics] no lyrics found for \"\(cleanTitle)\" - \"\(cleanArtist)\" (lrclib + qq + netease all empty/error)")
+        NSLog("[Lyrics] no usable synced lyrics for \"\(cleanTitle)\" - \"\(cleanArtist)\" (lrclib + qq + netease all rejected)")
         self.currentLyrics = ""
         self.syncedLyrics = []
         self.isFetchingLyrics = false
     }
 
+    /// 接受/拒绝一个抓取结果。返回 true 表示已写入 state（caller 应停止 fallback）；
+    /// 返回 false 表示这家给的不是有效同步歌词（caller 应继续走下一家）。
+    /// 严格模式下必须解析出 ≥2 行带时间戳的同步歌词；plain（无时间戳）一律不接受——
+    /// 之前 plain 兜底体验差（整段 \n→空格 当一行跑马灯滚），还容易让仅 1 行的伪 LRC
+    /// 卡在第一句不动。
     @MainActor
-    private func applyLyricsResult(plain: String, synced: String) {
-        let resolved = plain.isEmpty ? synced : plain
-        self.currentLyrics = resolved
+    private func applyLyricsResult(plain: String, synced: String) -> Bool {
+        let lines = synced.isEmpty ? [] : self.parseLRC(synced)
+        guard lines.count >= 2 else {
+            return false
+        }
+        self.syncedLyrics = lines
+        self.currentLyrics = ""
         self.isFetchingLyrics = false
-        self.syncedLyrics = synced.isEmpty ? [] : self.parseLRC(synced)
+        return true
     }
 
     // MARK: - Lyrics providers
