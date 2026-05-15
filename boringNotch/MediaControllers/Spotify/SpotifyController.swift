@@ -43,11 +43,16 @@ final class SpotifyController: MediaControllerProtocol {
 
     @MainActor
     convenience init() {
-        let auth = SpotifyAuthManager.shared
         self.init(
             appleScriptProvider: SpotifyAppleScriptProvider(),
-            webApiProvider: SpotifyWebApiProvider(auth: auth),
-            hasNetworkAccess: { await auth.validToken() != nil }
+            webApiProvider: SpotifyWebApiProvider(auth: SpotifyAuthManager.shared),
+            hasNetworkAccess: {
+                // 用户登录过 Web API（keychain 里有 token 或还能 refresh）就视为已配置。
+                // 这一刻不主动 refresh —— Web API 内部 validToken() 会按需 refresh，避免每次
+                // 命令选 provider 时阻塞等待网络。
+                let keychain = SpotifyKeychainManager.shared
+                return keychain.isTokenValid || keychain.refreshToken != nil
+            }
         )
     }
 
