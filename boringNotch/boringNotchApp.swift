@@ -443,9 +443,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         audioPlayer.play(fileName: "boring", fileExtension: "m4a")
     }
 
-    // OAuth 回调入口：Spotify 授权完成后会把浏览器跳回 com.joyzhang14.mysmartbar://...
+    // OAuth 回调入口：Spotify 授权完成后会把浏览器跳回 theboringteam.boringnotch://...
     func application(_ app: NSApplication, open urls: [URL]) {
-        guard let url = urls.first, url.scheme == "com.joyzhang14.mysmartbar" else { return }
+        guard let url = urls.first, url.scheme == "theboringteam.boringnotch" else { return }
         Task { await SpotifyAuthManager.shared.handleCallback(url: url) }
     }
 
