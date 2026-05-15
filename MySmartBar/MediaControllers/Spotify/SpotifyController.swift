@@ -30,6 +30,8 @@ final class SpotifyController: MediaControllerProtocol {
     private let appleScriptProvider: SpotifyProvider
     private let webApiProvider: SpotifyProvider?
     private let hasNetworkAccess: NetworkAccessEvaluator
+    // MediaRemote 私有 framework，唯一支持三态 repeat 的本地通道
+    private let mediaRemote: SpotifyMediaRemoteBridge? = SpotifyMediaRemoteBridge()
 
     private var notificationTask: Task<Void, Never>?
     private var pollingTask: Task<Void, Never>?
@@ -113,21 +115,21 @@ final class SpotifyController: MediaControllerProtocol {
         NSLog("[Spotify] toggleShuffle invoked: %@ -> %@",
               playbackState.isShuffled ? "on" : "off",
               target ? "on" : "off")
-        let provider = await stateProvider()
-        let ok = await provider.setShuffle(target)
-        // Web API 写失败（通常是 404 No Active Device）→ 直接走 AppleScript 给桌面 App 发指令
-        if !ok, provider !== appleScriptProvider {
-            NSLog("[Spotify] toggleShuffle fell back to AppleScript")
+        // 首选 MediaRemote（本地、无限流、即时生效）；不可用时退到 AppleScript
+        if let mediaRemote {
+            mediaRemote.setShuffle(target)
+        } else {
             _ = await appleScriptProvider.setShuffle(target)
         }
+        // 立即把意图同步到 cached state，避免随后的 AppleScript 读把状态又拽回来
+        playbackState.isShuffled = target
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
 
     // 三态循环：off → all (context) → one (track) → off
-    // cached 的 repeatMode 在这里被视作"用户意图"——点了什么立刻就推进到 next。
-    // 因为 AppleScript bool 读不出 .one，updatePlaybackInfo 在走 AppleScript 读时
-    // 不会覆盖 repeatMode（见下方），所以三态 cycle 永远不会卡。
+    // MediaRemote 三态都支持；MediaRemote 不可用时退到 AppleScript 的 bool。
+    // cached 的 repeatMode 视作"用户意图"——立即推进，AppleScript 读不会覆盖（见 updatePlaybackInfo）。
     func toggleRepeat() async {
         let next: RepeatMode
         switch playbackState.repeatMode {
@@ -138,15 +140,13 @@ final class SpotifyController: MediaControllerProtocol {
         NSLog("[Spotify] toggleRepeat invoked: %@ -> %@",
               String(describing: playbackState.repeatMode),
               String(describing: next))
-        let provider = await stateProvider()
-        let ok = await provider.setRepeatMode(next)
-        // Web API 写失败（404 No Active Device / 429 限流）→ 走 AppleScript（只支持 bool repeat，
-        // .one 实际上只写成"开启"，但 cached state 仍然显示 .one 给用户）
-        if !ok, provider !== appleScriptProvider {
-            NSLog("[Spotify] toggleRepeat fell back to AppleScript (bool repeat only)")
+        if let mediaRemote {
+            mediaRemote.setRepeat(next)
+        } else {
+            NSLog("[Spotify] toggleRepeat: MediaRemote unavailable, falling back to AppleScript")
             _ = await appleScriptProvider.setRepeatMode(next)
         }
-        // 立即把 cached state 推进到用户意图，避免随后 AppleScript 读把 .one 退回 .all
+        // 立即把 cached state 推进到用户意图，AppleScript bool 读不会覆盖（updatePlaybackInfo 内处理）
         playbackState.repeatMode = next
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
@@ -262,10 +262,14 @@ final class SpotifyController: MediaControllerProtocol {
 
     // 用于 Like / Shuffle / Repeat 的服务端写操作 + getPlayerState 读全状态。
     // 已登录 Web API 时优先走 Web API；否则降级到 AppleScript（only 两态 repeat，无 Like）。
+    // 限流冷却期间也直接走 AppleScript——否则轮询每秒都在 performRequest 里打一行 "skipped"。
     private func stateProvider() async -> SpotifyProvider {
         let hasAccess = await hasNetworkAccess()
         guard let webApiProvider, hasAccess else {
             NSLog("[Spotify] state provider -> AppleScript (no token)")
+            return appleScriptProvider
+        }
+        if let webApi = webApiProvider as? SpotifyWebApiProvider, webApi.isRateLimited {
             return appleScriptProvider
         }
         return webApiProvider
