@@ -1,5 +1,5 @@
 #!/bin/bash
-# 一键发布: build → sign → zip → 更新 appcast → push → 创建 GitHub release
+# 一键发布: build → sign → dmg+zip → 更新 appcast → push → 创建 GitHub release
 # 用法: ./scripts/release.sh 1.1.0
 set -euo pipefail
 
@@ -57,7 +57,21 @@ APP="$BUILD_DIR/Build/Products/Release/boringNotch.app"
 echo "==> Signing app..."
 SIGN_IDENTITY="$SIGN_IDENTITY" "$REPO_ROOT/scripts/sign-app.sh" "$APP"
 
-echo "==> Packaging zip..."
+echo "==> Building DMG..."
+DMG_VENV="$REPO_ROOT/Configuration/dmg/.venv"
+if [ ! -x "$DMG_VENV/bin/dmgbuild" ]; then
+  echo "    Setting up dmgbuild venv (first time only)..."
+  python3 -m venv "$DMG_VENV"
+  "$DMG_VENV/bin/pip" install --quiet --require-hashes -r "$REPO_ROOT/Configuration/dmg/requirements.txt"
+fi
+DMG_NAME="MySmartBar-${VERSION}.dmg"
+DMG_PATH="$BUILD_DIR/$DMG_NAME"
+PATH="$DMG_VENV/bin:$PATH" \
+  "$REPO_ROOT/Configuration/dmg/create_dmg.sh" "$APP" "$DMG_PATH" "My Smart Bar ${VERSION}"
+codesign -f -s "$SIGN_IDENTITY" "$DMG_PATH"
+echo "    $DMG_PATH ($(du -h "$DMG_PATH" | cut -f1))"
+
+echo "==> Packaging zip (for Sparkle delta updates)..."
 ZIP_NAME="MySmartBar-${VERSION}.zip"
 mkdir -p Releases
 rm -f Releases/*.zip
@@ -83,10 +97,11 @@ gh api -X POST "repos/${REPO_OWNER}/${REPO_NAME}/releases" \
   -f tag_name="v${VERSION}" \
   -f name="v${VERSION}" \
   -f body="Release v${VERSION}" >/dev/null
-gh release upload "v${VERSION}" "Releases/$ZIP_NAME" -R "${REPO_OWNER}/${REPO_NAME}"
+gh release upload "v${VERSION}" "Releases/$ZIP_NAME" "$DMG_PATH" -R "${REPO_OWNER}/${REPO_NAME}"
 
 echo ""
 echo "✅ Released v${VERSION}"
-echo "   Zip:     Releases/$ZIP_NAME"
+echo "   DMG:     $DMG_PATH (for download)"
+echo "   Zip:     Releases/$ZIP_NAME (for Sparkle auto-update)"
 echo "   Appcast: updater/appcast.xml"
 echo "   Release: https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag/v${VERSION}"

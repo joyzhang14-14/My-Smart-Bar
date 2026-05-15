@@ -56,3 +56,6 @@ build/
 # Local release artifacts (Sparkle appcast generation needs all past zips)
 Releases/
 
+# Python venv for dmgbuild
+Configuration/dmg/.venv/
+
