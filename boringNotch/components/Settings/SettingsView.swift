@@ -946,7 +946,7 @@ struct About: View {
             }
             VStack(spacing: 0) {
                 Divider()
-                Text("Made by Joy")
+                Text("Made By Joy ✨")
                     .foregroundStyle(.secondary)
                     .padding(.top, 5)
                     .padding(.bottom, 7)

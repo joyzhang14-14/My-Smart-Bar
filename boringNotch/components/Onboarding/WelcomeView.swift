@@ -62,7 +62,7 @@ struct WelcomeView: View {
                 .padding(.top)
             }
             
-            Text("Made by Joy")
+            Text("Made By Joy ✨")
                 .font(.system(.callout, design: .serif))
                 .italic()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
