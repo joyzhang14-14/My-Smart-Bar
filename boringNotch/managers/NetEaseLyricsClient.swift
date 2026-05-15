@@ -291,8 +291,9 @@ enum NetEaseLyricsClient {
         return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
     }
 
+    // 剥掉所有 [...] 段：标准时间戳、NetEase 的 [mm:ss.xx-N] 元数据、以及 [ti:]/[ar:] 等 ID3 标签。
     private static func stripLRCTimestamps(_ lrc: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: #"\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]"#) else {
+        guard let regex = try? NSRegularExpression(pattern: #"\[[^\]]*\]"#) else {
             return lrc
         }
         let ns = lrc as NSString

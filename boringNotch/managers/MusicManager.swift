@@ -539,36 +539,49 @@ class MusicManager: ObservableObject {
     }
 
     // MARK: - Synced lyrics helpers
+    // 解析 LRC 时间戳行。支持常见格式：
+    //   [mm:ss]Line             (无小数)
+    //   [mm:ss.x] / [mm:ss.xx]  (LRCLIB 风格，分/百毫秒)
+    //   [mm:ss.xxx]             (NetEase 风格，毫秒)
+    //   [mm:ss.xx-N]Line        (NetEase 元数据 / 翻译行标记，N 任意 1-2 位)
+    // 自动按小数位数判断进制（10/100/1000）。
     private func parseLRC(_ lrc: String) -> [(time: Double, text: String)] {
         var result: [(Double, String)] = []
+        let pattern = #"\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?(?:-\d{1,2})?\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return result }
+
         lrc.split(separator: "\n").forEach { lineSub in
             let line = String(lineSub)
-            // Match [mm:ss.xx] or [m:ss]
-            let pattern = #"\[(\d{1,2}):(\d{2})(?:\.(\d{1,2}))?\]"#
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
             let nsLine = line as NSString
-            if let match = regex.firstMatch(in: line, range: NSRange(location: 0, length: nsLine.length)) {
-                let minStr = nsLine.substring(with: match.range(at: 1))
-                let secStr = nsLine.substring(with: match.range(at: 2))
-                let csRange = match.range(at: 3)
-                let centiStr = csRange.location != NSNotFound ? nsLine.substring(with: csRange) : "0"
-                let minutes = Double(minStr) ?? 0
-                let seconds = Double(secStr) ?? 0
-                let centis = Double(centiStr) ?? 0
-                let time = minutes * 60 + seconds + centis / 100.0
-                let textStart = match.range.location + match.range.length
-                let text = nsLine.substring(from: textStart).trimmingCharacters(in: .whitespaces)
-                if !text.isEmpty {
-                    result.append((time, text))
-                }
+            guard let match = regex.firstMatch(in: line, range: NSRange(location: 0, length: nsLine.length)) else { return }
+
+            let minutes = Double(nsLine.substring(with: match.range(at: 1))) ?? 0
+            let seconds = Double(nsLine.substring(with: match.range(at: 2))) ?? 0
+
+            var fractional: Double = 0
+            let fracRange = match.range(at: 3)
+            if fracRange.location != NSNotFound {
+                let fracStr = nsLine.substring(with: fracRange)
+                let raw = Double(fracStr) ?? 0
+                let divisor: Double = pow(10, Double(fracStr.count))
+                fractional = raw / divisor
             }
+            let time = minutes * 60 + seconds + fractional
+
+            let textStart = match.range.location + match.range.length
+            let text = nsLine.substring(from: textStart).trimmingCharacters(in: .whitespaces)
+            // 元数据行（如"[00:00.00-1]作词 : ..."）跳过；只保留实际歌词。
+            // 启发式：text 含 ":" 且在 0 秒附近 → 多半是 metadata。
+            if text.isEmpty { return }
+            if time < 1 && text.contains(":") { return }
+            result.append((time, text))
         }
         return result.sorted { $0.0 < $1.0 }
     }
 
-    // 把 LRC 字符串里的 [mm:ss(.xx)] 时间戳全部拿掉，得到一份纯文本歌词。
+    // 把 LRC 字符串里所有 [...] 段（标准时间戳 + NetEase 元数据 + ti/ar/al 等 ID3 标签）全剥掉。
     private func stripLRCTimestamps(_ lrc: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: #"\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]"#) else {
+        guard let regex = try? NSRegularExpression(pattern: #"\[[^\]]*\]"#) else {
             return lrc
         }
         let ns = lrc as NSString
