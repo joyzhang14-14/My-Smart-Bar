@@ -566,7 +566,10 @@ struct ContentView: View {
             }
             .offset(x: rightSkipOffset)
         }
+        // 限定 HStack 在 chin 宽度内并居中，否则外层 VStack(alignment: .leading)
+        // 会把 MusicLiveActivity 整体推到左侧，让封面贴边、visualizer 离右边缘远。
         .frame(
+            width: computedChinWidth,
             height: vm.effectiveClosedNotchHeight,
             alignment: .center
         )
