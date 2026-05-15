@@ -51,6 +51,8 @@ struct ContentView: View {
 
     @Default(.showNotHumanFace) var showNotHumanFace
 
+    @Default(.extendedLyricsShowcase) var extendedLyricsShowcase
+
     // Shared interactive spring for movement/resizing to avoid conflicting animations
     private let animationSpring = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0)
 
@@ -92,6 +94,19 @@ struct ContentView: View {
         }
 
         return chinWidth
+    }
+
+    // 闭合 notch 下方"常驻歌词条"是否应该显示。
+    // 仅当：开关开 + notch 闭合 + live activity 可显示 + 正在播放 + 当前确有歌词
+    private var shouldShowExtendedLyrics: Bool {
+        guard extendedLyricsShowcase else { return false }
+        guard vm.notchState == .closed else { return false }
+        guard coordinator.musicLiveActivityEnabled else { return false }
+        guard !vm.hideOnClosed else { return false }
+        guard musicManager.isPlaying else { return false }
+        if !musicManager.syncedLyrics.isEmpty { return true }
+        let trimmed = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty
     }
 
     var body: some View {
@@ -144,7 +159,15 @@ struct ContentView: View {
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
                             .animation(.smooth, value: gestureProgress)
                     }
-                    .contentShape(Rectangle())
+                    // 当下方常驻歌词条显示时，把 hit-test 区域限制在原 live activity 高度，
+                    // 让歌词行成为 passive 显示——hover / 点击 / 手势都不会触发。
+                    .contentShape(
+                        TopHoverShape(
+                            height: shouldShowExtendedLyrics
+                                ? vm.effectiveClosedNotchHeight
+                                : .greatestFiniteMagnitude
+                        )
+                    )
                     .onHover { hovering in
                         handleHover(hovering)
                     }
@@ -374,6 +397,9 @@ struct ContentView: View {
                       .fixedSize()
               }
               .zIndex(2)
+            if shouldShowExtendedLyrics {
+                ExtendedLyricsBar()
+            }
             if vm.notchState == .open {
                 VStack {
                     switch coordinator.currentView {
@@ -518,6 +544,55 @@ struct ContentView: View {
             height: vm.effectiveClosedNotchHeight,
             alignment: .center
         )
+    }
+
+    // 闭合 notch 下方"常驻歌词条"。视觉上贴在 live activity 下面、被 NotchShape 一同剪裁，
+    // 因此整个 mainLayout 高度自然增高、保留双圆角。本身不接收任何鼠标事件。
+    @ViewBuilder
+    func ExtendedLyricsBar() -> some View {
+        let width = vm.closedNotchSize.width + 2 * max(0, vm.effectiveClosedNotchHeight - 12)
+
+        TimelineView(.animation(minimumInterval: 0.25)) { timeline in
+            let currentElapsed: Double = {
+                guard musicManager.isPlaying else { return musicManager.elapsedTime }
+                let delta = timeline.date.timeIntervalSince(musicManager.timestampDate)
+                let progressed = musicManager.elapsedTime + (delta * musicManager.playbackRate)
+                return min(max(progressed, 0), musicManager.songDuration)
+            }()
+            let line: String = {
+                if !musicManager.syncedLyrics.isEmpty {
+                    return musicManager.lyricLine(at: currentElapsed)
+                }
+                return musicManager.currentLyrics
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: "\n", with: " ")
+            }()
+
+            ZStack(alignment: .center) {
+                if !line.isEmpty {
+                    MarqueeText(
+                        .constant(line),
+                        font: .subheadline,
+                        nsFont: .subheadline,
+                        textColor: .gray,
+                        frameWidth: width
+                    )
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .id(line)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
+                }
+            }
+            .frame(width: width, height: 18, alignment: .center)
+            .clipped()
+            .animation(.easeOut(duration: 0.25), value: line)
+        }
+        .padding(.top, 3)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
@@ -755,6 +830,16 @@ struct GeneralDropTargetDelegate: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         return false
+    }
+}
+
+// 限制 hit-test 只覆盖顶部 height pt 的一段；用于让常驻歌词条 passive。
+// 传 .greatestFiniteMagnitude 时等价于 Rectangle()。
+struct TopHoverShape: Shape {
+    let height: CGFloat
+    func path(in rect: CGRect) -> Path {
+        let h = max(0, min(height, rect.height))
+        return Path(CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: h))
     }
 }
 

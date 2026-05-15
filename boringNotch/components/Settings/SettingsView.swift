@@ -1253,6 +1253,12 @@ struct Appearance: View {
                 Defaults.Toggle(key: .lightingEffect) {
                     Text("Enable blur effect behind album art")
                 }
+                Defaults.Toggle(key: .extendedLyricsShowcase) {
+                    HStack {
+                        Text("Enable extended lyrics showcase")
+                        customBadge(text: "Beta")
+                    }
+                }
                 Picker("Slider color", selection: $sliderColor) {
                     ForEach(SliderColorEnum.allCases, id: \.self) { option in
                         Text(option.rawValue)
