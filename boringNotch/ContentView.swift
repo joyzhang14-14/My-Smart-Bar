@@ -45,6 +45,13 @@ struct ContentView: View {
     @State private var chinPulseWidth: CGFloat = 0
     @State private var chinPulseSide: Int = 0
 
+    // 切歌方向图标：每次触发让 trigger +1 推动 .symbolEffect(.bounce) 弹一次，
+    // visible 在 600ms 后归 false 让图标淡出
+    @State private var skipLeftIconVisible: Bool = false
+    @State private var skipRightIconVisible: Bool = false
+    @State private var skipLeftIconTrigger: Int = 0
+    @State private var skipRightIconTrigger: Int = 0
+
     @Namespace var albumArtNamespace
 
     @Default(.useMusicVisualizer) var useMusicVisualizer
@@ -458,6 +465,15 @@ struct ContentView: View {
                     width: max(0, vm.effectiveClosedNotchHeight - 12),
                     height: max(0, vm.effectiveClosedNotchHeight - 12)
                 )
+                .overlay {
+                    if skipLeftIconVisible {
+                        Image(systemName: "backward.end.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                            .symbolEffect(.bounce, value: skipLeftIconTrigger)
+                            .transition(.opacity)
+                    }
+                }
                 .offset(x: leftSkipOffset)
 
             Rectangle()
@@ -538,6 +554,15 @@ struct ContentView: View {
                 ),
                 alignment: .center
             )
+            .overlay {
+                if skipRightIconVisible {
+                    Image(systemName: "forward.end.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                        .symbolEffect(.bounce, value: skipRightIconTrigger)
+                        .transition(.opacity)
+                }
+            }
             .offset(x: rightSkipOffset)
         }
         .frame(
@@ -744,6 +769,14 @@ struct ContentView: View {
                 withAnimation(animationSpring) { leftSkipOffset = 0 }
             }
 
+            // backward.end.fill 图标弹一下后淡出（symbolEffect 用 trigger 递增触发）
+            withAnimation(.easeOut(duration: 0.15)) { skipLeftIconVisible = true }
+            skipLeftIconTrigger &+= 1
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                withAnimation(.easeIn(duration: 0.2)) { skipLeftIconVisible = false }
+            }
+
             // 闭合状态下，notch 横向拉伸脉冲
             if vm.notchState == .closed {
                 chinPulseSide = -1
@@ -778,6 +811,14 @@ struct ContentView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(90))
                 withAnimation(animationSpring) { rightSkipOffset = 0 }
+            }
+
+            // forward.end.fill 图标弹一下后淡出
+            withAnimation(.easeOut(duration: 0.15)) { skipRightIconVisible = true }
+            skipRightIconTrigger &+= 1
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                withAnimation(.easeIn(duration: 0.2)) { skipRightIconVisible = false }
             }
 
             if vm.notchState == .closed {
