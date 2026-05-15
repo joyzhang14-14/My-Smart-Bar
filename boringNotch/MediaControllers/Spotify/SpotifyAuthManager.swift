@@ -3,7 +3,7 @@
 //  boringNotch
 //
 //  Spotify OAuth 2.0 Authorization Code Flow（Client Secret 走 Keychain，
-//  Client ID 走 Defaults）。授权完成后 Spotify 跳回 theboringteam.boringnotch://spotify-callback。
+//  Client ID 走 Defaults）。授权完成后 Spotify 跳回 com.joyzhang14.mysmartbar://spotify-callback。
 //
 
 import Foundation
@@ -14,7 +14,7 @@ import Defaults
 final class SpotifyAuthManager: ObservableObject {
     static let shared = SpotifyAuthManager()
 
-    private let redirectURI = "theboringteam.boringnotch://spotify-callback"
+    private let redirectURI = "com.joyzhang14.mysmartbar://spotify-callback"
     private let scopes = [
         "user-read-playback-state",
         "user-modify-playback-state",

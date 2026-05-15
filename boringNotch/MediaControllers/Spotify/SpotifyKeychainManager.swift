@@ -19,10 +19,10 @@ final class SpotifyKeychainManager {
 
     private let store = UserDefaults.standard
 
-    private let clientSecretKey = "theboringteam.boringnotch.spotify_client_secret"
-    private let accessTokenKey  = "theboringteam.boringnotch.spotify_access_token"
-    private let refreshTokenKey = "theboringteam.boringnotch.spotify_refresh_token"
-    private let expiryKey       = "theboringteam.boringnotch.spotify_token_expiry"
+    private let clientSecretKey = "com.joyzhang14.mysmartbar.spotify_client_secret"
+    private let accessTokenKey  = "com.joyzhang14.mysmartbar.spotify_access_token"
+    private let refreshTokenKey = "com.joyzhang14.mysmartbar.spotify_refresh_token"
+    private let expiryKey       = "com.joyzhang14.mysmartbar.spotify_token_expiry"
 
     var accessToken: String? {
         get { store.string(forKey: accessTokenKey) }
