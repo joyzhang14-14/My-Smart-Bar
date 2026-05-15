@@ -756,7 +756,7 @@ private struct SpotifyAuthSection: View {
         } header: {
             Text("Spotify Web API")
         } footer: {
-            Text("Required for Like and three-state Repeat on Spotify. In your Spotify Developer Dashboard, add the Redirect URI: theboringteam.boringnotch://spotify-callback")
+            Text("Required for Like and three-state Repeat on Spotify. In your Spotify Developer Dashboard, add the Redirect URI: com.joyzhang14.mysmartbar://spotify-callback")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
