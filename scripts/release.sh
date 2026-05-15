@@ -41,6 +41,8 @@ sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = $BUI
 echo "==> Building Release config (no signing during build)..."
 BUILD_DIR="$REPO_ROOT/build"
 rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR"
+touch "$BUILD_DIR/.metadata_never_index"  # 让 Spotlight 不索引构建产物
 xcodebuild \
   -project MySmartBar.xcodeproj \
   -scheme MySmartBar \
