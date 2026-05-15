@@ -12,6 +12,10 @@ final class SpotifyWebApiProvider: SpotifyProvider {
     private let session: URLSession
     private let baseURL = URL(string: "https://api.spotify.com")!
 
+    // 429 限流冷却。被限流期间所有请求直接短路返 nil，避免 1s 轮询继续打包让限流延长。
+    private var rateLimitedUntil: Date?
+    private let rateLimitLock = NSLock()
+
     init(auth: SpotifyAuthManager, session: URLSession = .shared) {
         self.auth = auth
         self.session = session
@@ -106,6 +110,10 @@ final class SpotifyWebApiProvider: SpotifyProvider {
     }
 
     private func performRequest(_ path: String, method: String, body: Data?) async -> Data? {
+        if let cooldown = currentCooldown() {
+            NSLog("[Spotify] %@ %@ skipped: rate-limited for %.0fs", method, path, cooldown)
+            return nil
+        }
         guard let token = await auth.validToken() else {
             NSLog("[Spotify] %@ %@ skipped: no valid token", method, path)
             return nil
@@ -125,12 +133,37 @@ final class SpotifyWebApiProvider: SpotifyProvider {
             NSLog("[Spotify] %@ %@ transport error", method, path)
             return nil
         }
+        if http.statusCode == 429 {
+            let retry = (http.value(forHTTPHeaderField: "Retry-After") as NSString?)?.doubleValue ?? 30
+            // Spotify 偶尔在限流期内 Retry-After 给 0；至少冷却 5 秒，避免立刻又打过去
+            setCooldown(seconds: max(retry, 5))
+            NSLog("[Spotify] %@ %@ -> 429  Too many requests (cooldown %.0fs)", method, path, max(retry, 5))
+            return nil
+        }
         guard (200...299).contains(http.statusCode) else {
             let bodyPreview = String(data: data.prefix(300), encoding: .utf8) ?? "<binary>"
             NSLog("[Spotify] %@ %@ -> %d  %@", method, path, http.statusCode, bodyPreview)
             return nil
         }
         return data.isEmpty ? Data("{}".utf8) : data
+    }
+
+    private func currentCooldown() -> TimeInterval? {
+        rateLimitLock.lock()
+        defer { rateLimitLock.unlock() }
+        guard let until = rateLimitedUntil else { return nil }
+        let remaining = until.timeIntervalSinceNow
+        if remaining <= 0 {
+            rateLimitedUntil = nil
+            return nil
+        }
+        return remaining
+    }
+
+    private func setCooldown(seconds: TimeInterval) {
+        rateLimitLock.lock()
+        rateLimitedUntil = Date().addingTimeInterval(seconds)
+        rateLimitLock.unlock()
     }
 
     private func normalizedTrackID(from id: String) -> String {
