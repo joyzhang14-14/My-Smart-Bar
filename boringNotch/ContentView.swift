@@ -410,9 +410,16 @@ struct ContentView: View {
                       .fixedSize()
               }
               .zIndex(2)
-            if shouldShowExtendedLyrics {
-                ExtendedLyricsBar()
+            Group {
+                if shouldShowExtendedLyrics {
+                    ExtendedLyricsBar()
+                        .transition(
+                            .scale(scale: 0.6, anchor: .top)
+                            .combined(with: .opacity)
+                        )
+                }
             }
+            .animation(animationSpring, value: shouldShowExtendedLyrics)
             if vm.notchState == .open {
                 VStack {
                     switch coordinator.currentView {
