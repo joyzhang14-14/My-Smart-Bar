@@ -147,10 +147,6 @@ extension Defaults.Keys {
     static let swipeDirection = Key<SwipeDirection>("swipeDirection", default: .leftIsNext)
     static let skipIconSide = Key<SkipIconSide>("skipIconSide", default: .opposite)
 
-    // MARK: Spotify
-    // Client ID 明文存于 Defaults（Spotify 文档允许公开）；Client Secret 走 Keychain。
-    static let spotifyClientID = Key<String>("spotifyClientID", default: "")
-    
     // MARK: Media playback
     static let coloredSpectrogram = Key<Bool>("coloredSpectrogram", default: true)
     static let enableSneakPeek = Key<Bool>("enableSneakPeek", default: false)

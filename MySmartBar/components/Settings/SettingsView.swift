@@ -694,7 +694,6 @@ struct Media: View {
                     .foregroundStyle(.secondary)
             }
 
-            SpotifyAuthSection()
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("Media")
@@ -707,60 +706,6 @@ struct Media: View {
         } else {
             return MediaControllerType.allCases
         }
-    }
-}
-
-private struct SpotifyAuthSection: View {
-    @ObservedObject private var auth = SpotifyAuthManager.shared
-    @Default(.spotifyClientID) private var clientID
-    @State private var clientSecret: String = ""
-
-    var body: some View {
-        Section {
-            TextField("Client ID", text: $clientID)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled(true)
-
-            SecureField("Client Secret", text: $clientSecret)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit { auth.updateClientSecret(clientSecret) }
-                .onChange(of: clientSecret) { _, newValue in
-                    auth.updateClientSecret(newValue)
-                }
-
-            HStack {
-                if auth.isAuthorized {
-                    Label("Connected", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                } else {
-                    Label("Not connected", systemImage: "circle")
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if auth.isAuthorized {
-                    Button("Sign Out") { auth.signOut() }
-                } else {
-                    // 直接用本地 view state 判断 disabled，避免依赖 keychain/UserDefaults
-                    // 写入时序——用户输入立刻反映到按钮上。点击时 startAuthFlow 内部还会
-                    // 再次校验 keychain 实际状态。
-                    let clientIDFilled = !clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    let clientSecretFilled = !clientSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    Button("Login with Spotify") {
-                        // 保险起见，点之前同步一次 secret 到存储
-                        auth.updateClientSecret(clientSecret)
-                        auth.startAuthFlow()
-                    }
-                    .disabled(!(clientIDFilled && clientSecretFilled))
-                }
-            }
-        } header: {
-            Text("Spotify Web API")
-        } footer: {
-            Text("Required for Like and three-state Repeat on Spotify. In your Spotify Developer Dashboard, add the Redirect URI: com.joyzhang14.mysmartbar://spotify-callback")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .onAppear { clientSecret = auth.storedClientSecret() }
     }
 }
 
