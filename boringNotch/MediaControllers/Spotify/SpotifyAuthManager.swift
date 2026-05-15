@@ -137,32 +137,6 @@ final class SpotifyAuthManager: ObservableObject {
         NotificationCenter.default.post(name: .spotifyAuthorizationChanged, object: nil)
     }
 
-    // 诊断：直接打两个 endpoint 看真实响应，从外部 curl 受限于 sandbox 时用这条路径。
-    func runDiagnostics() async {
-        NSLog("[Spotify] === diag start ===")
-        await diagGet("/v1/me")
-        await diagGet("/v1/me/tracks/contains?ids=4iV5W9uYEdYUVa79Axb7Rh")
-        NSLog("[Spotify] === diag end ===")
-    }
-
-    private func diagGet(_ path: String) async {
-        guard let token = await validToken() else {
-            NSLog("[Spotify] diag %@ skipped: no token", path)
-            return
-        }
-        guard let base = URL(string: "https://api.spotify.com"),
-              let url = URL(string: path, relativeTo: base) else { return }
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let http = response as? HTTPURLResponse else {
-            NSLog("[Spotify] diag %@ transport error", path)
-            return
-        }
-        let body = String(data: data.prefix(400), encoding: .utf8) ?? "<binary>"
-        NSLog("[Spotify] diag %@ -> %d %@", path, http.statusCode, body)
-    }
-
     func handleCredentialChange() {
         if isAuthorized { signOut() }
     }

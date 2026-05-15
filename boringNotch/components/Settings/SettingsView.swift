@@ -738,9 +738,6 @@ private struct SpotifyAuthSection: View {
                 }
                 Spacer()
                 if auth.isAuthorized {
-                    Button("Run Diagnostics") {
-                        Task { await auth.runDiagnostics() }
-                    }
                     Button("Sign Out") { auth.signOut() }
                 } else {
                     // 直接用本地 view state 判断 disabled，避免依赖 keychain/UserDefaults
