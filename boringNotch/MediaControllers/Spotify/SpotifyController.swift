@@ -81,32 +81,36 @@ final class SpotifyController: MediaControllerProtocol {
     }
 
     // MARK: - MediaControllerProtocol
+
+    // 仅 Like / Shuffle / Repeat 三个走 Web API（已登录时），需要修改 Spotify 服务端状态、拿三态/Like 信息。
+    // 其余播放控制（play/pause/next/previous/seek/volume）始终走 AppleScript，本地即时，不依赖网络。
+
     func setFavorite(_ favorite: Bool) async {
         guard let trackID = await currentTrackIDForFavoriteAction() else { return }
-        await getPlaybackProvider().setLiked(favorite, id: trackID)
+        await stateProvider().setLiked(favorite, id: trackID)
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
 
-    func play() async { await getPlaybackProvider().play() }
-    func pause() async { await getPlaybackProvider().pause() }
-    func togglePlay() async { await getPlaybackProvider().togglePlay() }
-    func nextTrack() async { await getPlaybackProvider().nextTrack() }
+    func play() async { await appleScriptProvider.play() }
+    func pause() async { await appleScriptProvider.pause() }
+    func togglePlay() async { await appleScriptProvider.togglePlay() }
+    func nextTrack() async { await appleScriptProvider.nextTrack() }
 
     func previousTrack() async {
-        await getPlaybackProvider().previousTrack()
+        await appleScriptProvider.previousTrack()
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
 
     func seek(to time: Double) async {
-        await getPlaybackProvider().seek(to: time)
+        await appleScriptProvider.seek(to: time)
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
 
     func toggleShuffle() async {
-        await getPlaybackProvider().setShuffle(!playbackState.isShuffled)
+        await stateProvider().setShuffle(!playbackState.isShuffled)
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
@@ -119,14 +123,14 @@ final class SpotifyController: MediaControllerProtocol {
         case .all: next = .one
         case .one: next = .off
         }
-        await getPlaybackProvider().setRepeatMode(next)
+        await stateProvider().setRepeatMode(next)
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
 
     func setVolume(_ level: Double) async {
         let clamped = max(0.0, min(1.0, level))
-        await getPlaybackProvider().setVolume(Int(clamped * 100))
+        await appleScriptProvider.setVolume(Int(clamped * 100))
         try? await Task.sleep(for: commandUpdateDelay)
         await updatePlaybackInfo()
     }
@@ -136,7 +140,7 @@ final class SpotifyController: MediaControllerProtocol {
     }
 
     func updatePlaybackInfo() async {
-        let provider = await getPlaybackProvider()
+        let provider = await stateProvider()
         let playerState = await provider.getPlayerState()
 
         var state = PlaybackState(
@@ -214,17 +218,19 @@ final class SpotifyController: MediaControllerProtocol {
         }
     }
 
-    private func getPlaybackProvider() async -> SpotifyProvider {
+    // 用于 Like / Shuffle / Repeat 的服务端写操作 + getPlayerState 读全状态。
+    // 已登录 Web API 时优先走 Web API；否则降级到 AppleScript（only 两态 repeat，无 Like）。
+    private func stateProvider() async -> SpotifyProvider {
         let hasAccess = await hasNetworkAccess()
         guard let webApiProvider, hasAccess else {
-            NSLog("[Spotify] provider -> AppleScript (no token)")
+            NSLog("[Spotify] state provider -> AppleScript (no token)")
             return appleScriptProvider
         }
         return webApiProvider
     }
 
     private func currentTrackIDForFavoriteAction() async -> String? {
-        let playerState = await getPlaybackProvider().getPlayerState()
+        let playerState = await stateProvider().getPlayerState()
         return playerState.trackID.isEmpty ? nil : playerState.trackID
     }
 }
