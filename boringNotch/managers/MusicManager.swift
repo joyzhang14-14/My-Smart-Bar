@@ -353,7 +353,10 @@ class MusicManager: ObservableObject {
 
     // MARK: - Lyrics
     private func fetchLyricsIfAvailable(bundleIdentifier: String?, title: String, artist: String) {
-        guard Defaults[.enableLyrics], !title.isEmpty else {
+        // 任一展示开关启用就 fetch（旧的 enableLyrics 控制大 UI 内歌词行，
+        // 新的 extendedLyricsShowcase 控制 closed notch 下方常驻条），保证两者真正独立。
+        let shouldFetch = Defaults[.enableLyrics] || Defaults[.extendedLyricsShowcase]
+        guard shouldFetch, !title.isEmpty else {
             DispatchQueue.main.async {
                 self.isFetchingLyrics = false
                 self.currentLyrics = ""
@@ -425,49 +428,108 @@ class MusicManager: ObservableObject {
     private func fetchLyricsFromWeb(title: String, artist: String) async {
         let cleanTitle = normalizedQuery(title)
         let cleanArtist = normalizedQuery(artist)
-        guard let encodedTitle = cleanTitle.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let encodedArtist = cleanArtist.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            self.currentLyrics = ""
-            self.isFetchingLyrics = false
+
+        // 1) 主源：LRCLIB（无需鉴权、稳定）。
+        if let result = await fetchFromLRCLIB(title: cleanTitle, artist: cleanArtist) {
+            applyLyricsResult(plain: result.plain, synced: result.synced)
             return
         }
 
-        // LRCLIB simple search (no auth): https://lrclib.net/api/search?track_name=...&artist_name=...
-        let urlString = "https://lrclib.net/api/search?track_name=\(encodedTitle)&artist_name=\(encodedArtist)"
-        guard let url = URL(string: urlString) else {
-            self.currentLyrics = ""
-            self.isFetchingLyrics = false
+        // 2) Fallback：自部署的 NetEase Cloud Music API (api-enhanced)。
+        let neteaseURL = Defaults[.neteaseAPIBaseURL].trimmingCharacters(in: .whitespaces)
+        if !neteaseURL.isEmpty,
+           let result = await fetchFromNetEase(baseURL: neteaseURL, title: cleanTitle, artist: cleanArtist) {
+            applyLyricsResult(plain: result.plain, synced: result.synced)
             return
         }
+
+        // 全部失败：清空。
+        NSLog("[Lyrics] no lyrics found for \"\(cleanTitle)\" - \"\(cleanArtist)\" (lrclib + netease both empty/error)")
+        self.currentLyrics = ""
+        self.syncedLyrics = []
+        self.isFetchingLyrics = false
+    }
+
+    @MainActor
+    private func applyLyricsResult(plain: String, synced: String) {
+        let resolved = plain.isEmpty ? synced : plain
+        self.currentLyrics = resolved
+        self.isFetchingLyrics = false
+        self.syncedLyrics = synced.isEmpty ? [] : self.parseLRC(synced)
+    }
+
+    // MARK: - Lyrics providers
+
+    private func fetchFromLRCLIB(title: String, artist: String) async -> (plain: String, synced: String)? {
+        guard let encodedTitle = title.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let encodedArtist = artist.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+        let urlString = "https://lrclib.net/api/search?track_name=\(encodedTitle)&artist_name=\(encodedArtist)"
+        guard let url = URL(string: urlString) else { return nil }
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                self.currentLyrics = ""
-                self.isFetchingLyrics = false
-                return
+                NSLog("[Lyrics] LRCLIB non-200: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                return nil
             }
-            if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-               let first = jsonArray.first {
-                // Prefer plain lyrics (syncedLyrics may also be present)
-                let plain = (first["plainLyrics"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let synced = (first["syncedLyrics"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let resolved = plain.isEmpty ? synced : plain
-                self.currentLyrics = resolved
-                self.isFetchingLyrics = false
-                if !synced.isEmpty {
-                    self.syncedLyrics = self.parseLRC(synced)
-                } else {
-                    self.syncedLyrics = []
-                }
-            } else {
-                self.currentLyrics = ""
-                self.isFetchingLyrics = false
-                self.syncedLyrics = []
+            guard let arr = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                  let first = arr.first else {
+                return nil
             }
+            let plain = (first["plainLyrics"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let synced = (first["syncedLyrics"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if plain.isEmpty && synced.isEmpty { return nil }
+            return (plain, synced)
         } catch {
-            self.currentLyrics = ""
-            self.isFetchingLyrics = false
-            self.syncedLyrics = []
+            NSLog("[Lyrics] LRCLIB error: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func fetchFromNetEase(baseURL: String, title: String, artist: String) async -> (plain: String, synced: String)? {
+        let trimmedBase = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+        let query = artist.isEmpty ? title : "\(title) \(artist)"
+        guard let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let searchURL = URL(string: "\(trimmedBase)/search?keywords=\(encoded)&type=1&limit=1") else {
+            return nil
+        }
+        do {
+            let (searchData, searchResp) = try await URLSession.shared.data(from: searchURL)
+            guard let searchHTTP = searchResp as? HTTPURLResponse, searchHTTP.statusCode == 200 else {
+                NSLog("[Lyrics] NetEase search non-200: \((searchResp as? HTTPURLResponse)?.statusCode ?? -1)")
+                return nil
+            }
+            guard let json = try JSONSerialization.jsonObject(with: searchData) as? [String: Any],
+                  let result = json["result"] as? [String: Any],
+                  let songs = result["songs"] as? [[String: Any]],
+                  let firstSong = songs.first,
+                  let songID = firstSong["id"] as? Int else {
+                NSLog("[Lyrics] NetEase search returned no songs")
+                return nil
+            }
+            guard let lyricURL = URL(string: "\(trimmedBase)/lyric?id=\(songID)") else { return nil }
+            let (lyricData, lyricResp) = try await URLSession.shared.data(from: lyricURL)
+            guard let lyricHTTP = lyricResp as? HTTPURLResponse, lyricHTTP.statusCode == 200 else {
+                NSLog("[Lyrics] NetEase lyric non-200: \((lyricResp as? HTTPURLResponse)?.statusCode ?? -1)")
+                return nil
+            }
+            guard let lyricJSON = try JSONSerialization.jsonObject(with: lyricData) as? [String: Any] else {
+                return nil
+            }
+            let lrcContainer = lyricJSON["lrc"] as? [String: Any]
+            let lrc = (lrcContainer?["lyric"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if lrc.isEmpty {
+                NSLog("[Lyrics] NetEase lyric: empty lrc.lyric")
+                return nil
+            }
+            // NetEase 的 lrc 一般是带时间戳的同步歌词；同时生成一份"去时间戳"的纯文本，
+            // 给不支持同步歌词的旧大 UI 兜底（不然会显示成 "[00:00.00]xxx"）。
+            let plain = stripLRCTimestamps(lrc)
+            return (plain: plain, synced: lrc)
+        } catch {
+            NSLog("[Lyrics] NetEase error: \(error.localizedDescription)")
+            return nil
         }
     }
 
@@ -497,6 +559,24 @@ class MusicManager: ObservableObject {
             }
         }
         return result.sorted { $0.0 < $1.0 }
+    }
+
+    // 把 LRC 字符串里的 [mm:ss(.xx)] 时间戳全部拿掉，得到一份纯文本歌词。
+    private func stripLRCTimestamps(_ lrc: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: #"\[\d{1,2}:\d{2}(?:\.\d{1,3})?\]"#) else {
+            return lrc
+        }
+        let ns = lrc as NSString
+        let stripped = regex.stringByReplacingMatches(
+            in: lrc,
+            range: NSRange(location: 0, length: ns.length),
+            withTemplate: ""
+        )
+        return stripped
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
     }
 
     func lyricLine(at elapsed: Double) -> String {

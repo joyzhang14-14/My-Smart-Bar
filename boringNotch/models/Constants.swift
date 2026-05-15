@@ -135,6 +135,10 @@ extension Defaults.Keys {
     static let showShuffleAndRepeat = Key<Bool>("showShuffleAndRepeat", default: false)
     static let enableLyrics = Key<Bool>("enableLyrics", default: false)
     static let extendedLyricsShowcase = Key<Bool>("extendedLyricsShowcase", default: false)
+    // NetEase Cloud Music API (api-enhanced) base URL，用作 lrclib 失败时的歌词 fallback。
+    // 默认指向本机自部署（docker run -d -p 3000:3000 moefurina/ncm-api）。
+    // 留空则禁用此 fallback。
+    static let neteaseAPIBaseURL = Key<String>("neteaseAPIBaseURL", default: "http://localhost:3000")
     static let musicControlSlots = Key<[MusicControlButton]>(
         "musicControlSlots",
         default: MusicControlButton.defaultLayout

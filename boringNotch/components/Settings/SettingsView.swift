@@ -601,6 +601,7 @@ struct Media: View {
     @Default(.sneakPeekStyles) var sneakPeekStyles
 
     @Default(.enableLyrics) var enableLyrics
+    @Default(.neteaseAPIBaseURL) var neteaseAPIBaseURL
 
     var body: some View {
         Form {
@@ -690,6 +691,23 @@ struct Media: View {
                 Text("Media controls")
             }  footer: {
                 Text("Customize which controls appear in the music player. Volume expands when active.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                HStack {
+                    Text("NetEase API base URL")
+                    Spacer(minLength: 16)
+                    TextField("http://localhost:3000", text: $neteaseAPIBaseURL)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 300)
+                }
+            } header: {
+                Text("Lyrics fallback")
+            } footer: {
+                Text("Used when LRCLIB returns nothing or fails. Self-host the NetEase Cloud Music API (api-enhanced) — e.g. `docker run -d -p 3000:3000 moefurina/ncm-api`. Leave blank to disable fallback.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
