@@ -32,15 +32,18 @@ enum NetEaseLyricsClient {
     // MARK: - Endpoints
 
     private static func searchSongID(query: String) async -> Int? {
+        // 用新版 cloudsearch/pc 端点，不是老的 search/get / cloudsearch/get/web。
+        // 老端点对未登录请求会返回 code:50000005（反爬）。
         let body: [String: Any] = [
             "s": query,
             "type": 1,
             "limit": 1,
             "offset": 0,
+            "total": true,
             "csrf_token": ""
         ]
         guard let json = jsonString(body),
-              let resp = await postWeapi(path: "/cloudsearch/get/web", paramsJSON: json) else {
+              let resp = await postWeapi(path: "/cloudsearch/pc", paramsJSON: json) else {
             return nil
         }
         guard let result = resp["result"] as? [String: Any],
@@ -81,9 +84,11 @@ enum NetEaseLyricsClient {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+        // 这一套 UA + cookies 完全照抄 api-enhanced 的 weapi 配置（util/request.js）。
+        // 缺任何一个字段都可能触发反爬返回 code:50000005。
+        req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0", forHTTPHeaderField: "User-Agent")
         req.setValue("https://music.163.com/", forHTTPHeaderField: "Referer")
-        req.setValue("os=pc; appver=2.7.1.198277; osver=Macintosh", forHTTPHeaderField: "Cookie")
+        req.setValue(buildWeapiCookie(), forHTTPHeaderField: "Cookie")
 
         let bodyStr = "params=\(formURLEncode(encrypted.params))&encSecKey=\(formURLEncode(encrypted.encSecKey))"
         req.httpBody = bodyStr.data(using: .utf8)
@@ -220,7 +225,49 @@ enum NetEaseLyricsClient {
         return spki.subdata(in: 22..<spki.count)
     }
 
+    // MARK: - Cookies
+
+    // 构造一组完整的 cookie 字符串，模拟"已注册但未登录"的 web 客户端。
+    // 字段集合 + 默认值与 api-enhanced 的 processCookieObject 对齐；NetEase 用这些 cookie
+    // 判断是否合法 web 客户端，缺字段就 50000005 反爬。
+    private static func buildWeapiCookie() -> String {
+        let nuid = randomHex(length: 32)
+        let nmtid = randomHex(length: 16)
+        let timestamp = String(Int(Date().timeIntervalSince1970 * 1000))
+        let wnmcid = "\(randomLowerLetters(length: 6)).\(timestamp).01.0"
+
+        let pairs: [(String, String)] = [
+            ("__remember_me", "true"),
+            ("ntes_kaola_ad", "1"),
+            ("_ntes_nuid", nuid),
+            ("_ntes_nnid", "\(nuid),\(timestamp)"),
+            ("WNMCID", wnmcid),
+            ("WEVNSM", "1.0.0"),
+            ("osver", "Microsoft-Windows-10-Professional-build-19045-64bit"),
+            ("os", "pc"),
+            ("channel", "netease"),
+            ("appver", "3.1.17.204416"),
+            ("NMTID", nmtid),
+            ("MUSIC_A", "")
+        ]
+        return pairs.map { "\($0.0)=\($0.1)" }.joined(separator: "; ")
+    }
+
     // MARK: - Helpers
+
+    private static func randomHex(length: Int) -> String {
+        let chars = Array("0123456789abcdef")
+        var out = ""
+        for _ in 0..<length { out.append(chars[Int.random(in: 0..<chars.count)]) }
+        return out
+    }
+
+    private static func randomLowerLetters(length: Int) -> String {
+        let chars = Array("abcdefghijklmnopqrstuvwxyz")
+        var out = ""
+        for _ in 0..<length { out.append(chars[Int.random(in: 0..<chars.count)]) }
+        return out
+    }
 
     private static func randomBase62String(length: Int) -> String {
         let chars = Array(base62Alphabet)
