@@ -12,6 +12,14 @@ final class SpotifyWebApiProvider: SpotifyProvider {
     private let session: URLSession
     private let baseURL = URL(string: "https://api.spotify.com")!
 
+    // isTrackLiked 缓存：避免每秒 polling 都打 /v1/me/tracks/contains。
+    // 只在 trackID 或 isPlaying 变化（或用户主动 setLiked 后失效）时重新查询。
+    private struct LikedCacheKey: Equatable {
+        let trackID: String
+        let isPlaying: Bool
+    }
+    private var likedCache: (key: LikedCacheKey, value: Bool)?
+
     init(auth: SpotifyAuthManager, session: URLSession = .shared) {
         self.auth = auth
         self.session = session
@@ -26,7 +34,19 @@ final class SpotifyWebApiProvider: SpotifyProvider {
 
         let item = response.item
         let trackID = item?.id ?? ""
-        let liked = trackID.isEmpty ? false : await isTrackLiked(id: trackID)
+
+        let liked: Bool
+        if trackID.isEmpty {
+            liked = false
+        } else {
+            let key = LikedCacheKey(trackID: trackID, isPlaying: response.isPlaying)
+            if let cached = likedCache, cached.key == key {
+                liked = cached.value
+            } else {
+                liked = await isTrackLiked(id: trackID)
+                likedCache = (key, liked)
+            }
+        }
 
         return SpotifyPlayerState(
             isPlaying: response.isPlaying,
@@ -89,6 +109,8 @@ final class SpotifyWebApiProvider: SpotifyProvider {
         let encoded = cleanID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? cleanID
         let method = liked ? "PUT" : "DELETE"
         _ = await sendCommand("/v1/me/tracks?ids=\(encoded)", method: method)
+        // 用户主动改变 like 状态后让缓存失效，下一次 getPlayerState 会拿到真实状态
+        likedCache = nil
     }
 
     // MARK: - Private

@@ -99,8 +99,17 @@ final class SpotifyAuthManager: ObservableObject {
     }
 
     private func performTokenRequest(_ request: URLRequest) async {
-        guard let (data, _) = try? await URLSession.shared.data(for: request),
-              let json = try? JSONDecoder().decode(SpotifyTokenResponse.self, from: data) else {
+        guard let (data, response) = try? await URLSession.shared.data(for: request) else {
+            NSLog("[Spotify] token request transport error")
+            return
+        }
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            let body = String(data: data.prefix(300), encoding: .utf8) ?? "<binary>"
+            NSLog("[Spotify] token request -> %d %@", http.statusCode, body)
+            return
+        }
+        guard let json = try? JSONDecoder().decode(SpotifyTokenResponse.self, from: data) else {
+            NSLog("[Spotify] token response decode failed")
             return
         }
 
@@ -109,6 +118,8 @@ final class SpotifyAuthManager: ObservableObject {
         if let refresh = json.refreshToken {
             keychain.refreshToken = refresh
         }
+        // 打印实际授予的 scope：用来定位 403 是 scope 缺失（OAuth/Dashboard）还是 access list 问题
+        NSLog("[Spotify] token issued, granted scope=%@", json.scope ?? "<missing>")
 
         isAuthorized = true
         NotificationCenter.default.post(name: .spotifyAuthorizationChanged, object: nil)
@@ -157,11 +168,13 @@ private struct SpotifyTokenResponse: Decodable {
     let accessToken: String
     let expiresIn: Int
     let refreshToken: String?
+    let scope: String?
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case expiresIn = "expires_in"
         case refreshToken = "refresh_token"
+        case scope
     }
 }
 
