@@ -11,25 +11,30 @@ import SwiftUI
 struct NotchShape: Shape {
     private var topCornerRadius: CGFloat
     private var bottomCornerRadius: CGFloat
+    // 有符号横向拉伸量。正值 => 向右拉伸；负值 => 向左拉伸。
+    private var horizontalStretch: CGFloat
 
     init(
         topCornerRadius: CGFloat? = nil,
-        bottomCornerRadius: CGFloat? = nil
+        bottomCornerRadius: CGFloat? = nil,
+        horizontalStretch: CGFloat = 0
     ) {
         self.topCornerRadius = topCornerRadius ?? 6
         self.bottomCornerRadius = bottomCornerRadius ?? 14
+        self.horizontalStretch = horizontalStretch
     }
 
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, CGFloat> {
         get {
             .init(
-                topCornerRadius,
-                bottomCornerRadius
+                .init(topCornerRadius, bottomCornerRadius),
+                horizontalStretch
             )
         }
         set {
-            topCornerRadius = newValue.first
-            bottomCornerRadius = newValue.second
+            topCornerRadius = newValue.first.first
+            bottomCornerRadius = newValue.first.second
+            horizontalStretch = newValue.second
         }
     }
 
@@ -115,7 +120,16 @@ struct NotchShape: Shape {
             )
         )
 
-        return path
+        // 以适当锚点为基准做横向缩放，让 notch 视觉上向滑动方向拉伸，
+        // 而不会改变上方圆角几何计算。
+        let scaleX = 1 + horizontalStretch
+        // 正拉伸（向右推）以左边为锚点；负拉伸（向左推）以右边为锚点
+        let anchorX: CGFloat = horizontalStretch >= 0 ? rect.minX : rect.maxX
+        var transform = CGAffineTransform(translationX: -anchorX, y: 0)
+        transform = transform.scaledBy(x: scaleX, y: 1)
+        transform = transform.translatedBy(x: anchorX, y: 0)
+
+        return path.applying(transform)
     }
 }
 

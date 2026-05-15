@@ -31,6 +31,20 @@ struct ContentView: View {
 
     @State private var haptics: Bool = false
 
+    // 左右滑动切歌相关：单次手势只触发一次
+    @State private var skipLeftTriggered: Bool = false
+    @State private var skipRightTriggered: Bool = false
+
+    // 切歌后的视觉反馈：专辑封面 / 右侧元素的瞬时位移
+    @State private var leftSkipOffset: CGFloat = 0
+    @State private var rightSkipOffset: CGFloat = 0
+
+    // notch 闭合时切歌的"拉伸脉冲"：宽度增量 + 方向（-1 左 / 0 无 / 1 右）
+    private let skipNotchWidthPulse: CGFloat = 18
+    private let skipItemWidthPulse: CGFloat = 5
+    @State private var chinPulseWidth: CGFloat = 0
+    @State private var chinPulseSide: Int = 0
+
     @Namespace var albumArtNamespace
 
     @Default(.useMusicVisualizer) var useMusicVisualizer
@@ -87,7 +101,9 @@ struct ContentView: View {
             let scaleFactor = 1.0 + gestureProgress * 0.01
             return max(0.6, scaleFactor)
         }()
-        
+        // notch 拉伸脉冲时整体的水平位移，向滑动方向偏移半个增量宽度
+        let chinPulseShift: CGFloat = (chinPulseWidth / 2.0) * CGFloat(chinPulseSide)
+
         ZStack(alignment: .top) {
             VStack(spacing: 0) {
                 let mainLayout = NotchLayout()
@@ -119,6 +135,7 @@ struct ContentView: View {
                 
                 mainLayout
                     .frame(height: vm.notchState == .open ? vm.notchSize.height : nil)
+                    .offset(x: chinPulseShift)
                     .conditionalModifier(true) { view in
                         let openAnimation = Animation.spring(response: 0.42, dampingFraction: 0.8, blendDuration: 0)
                         let closeAnimation = Animation.spring(response: 0.45, dampingFraction: 1.0, blendDuration: 0)
@@ -144,6 +161,18 @@ struct ContentView: View {
                         view
                             .panGesture(direction: .up) { translation, phase in
                                 handleUpGesture(translation: translation, phase: phase)
+                            }
+                    }
+                    .conditionalModifier(Defaults[.skipGestureEnabled] && Defaults[.enableGestures]) { view in
+                        view
+                            .panGesture(direction: .left) { translation, phase in
+                                handleLeftGesture(translation: translation, phase: phase)
+                            }
+                    }
+                    .conditionalModifier(Defaults[.skipGestureEnabled] && Defaults[.enableGestures]) { view in
+                        view
+                            .panGesture(direction: .right) { translation, phase in
+                                handleRightGesture(translation: translation, phase: phase)
                             }
                     }
                     .onReceive(NotificationCenter.default.publisher(for: .sharingDidFinish)) { _ in
@@ -198,7 +227,10 @@ struct ContentView: View {
                 if vm.chinHeight > 0 {
                     Rectangle()
                         .fill(Color.black.opacity(0.01))
-                        .frame(width: computedChinWidth, height: vm.chinHeight)
+                        .frame(width: computedChinWidth + chinPulseWidth, height: vm.chinHeight)
+                        .offset(x: chinPulseShift)
+                        // 不让外部隐式动画影响脉冲，触发时显式 withAnimation
+                        .animation(nil, value: chinPulseWidth)
                 }
             }
         }
@@ -400,6 +432,7 @@ struct ContentView: View {
                     width: max(0, vm.effectiveClosedNotchHeight - 12),
                     height: max(0, vm.effectiveClosedNotchHeight - 12)
                 )
+                .offset(x: leftSkipOffset)
 
             Rectangle()
                 .fill(.black)
@@ -479,6 +512,7 @@ struct ContentView: View {
                 ),
                 alignment: .center
             )
+            .offset(x: rightSkipOffset)
         }
         .frame(
             height: vm.effectiveClosedNotchHeight,
@@ -606,6 +640,79 @@ struct ContentView: View {
 
             if Defaults[.enableHaptics] {
                 haptics.toggle()
+            }
+        }
+    }
+
+    private func handleLeftGesture(translation: CGFloat, phase: NSEvent.Phase) {
+        guard !vm.isHoveringCalendar && musicManager.isPlaying else { return }
+
+        if phase == .began {
+            skipLeftTriggered = false
+            return
+        }
+        if phase == .ended {
+            skipLeftTriggered = false
+            return
+        }
+
+        // 单次手势内只触发一次切歌。.changed 阶段累计达阈值即触发。
+        if !skipLeftTriggered && translation > Defaults[.gestureSensitivity] {
+            if Defaults[.enableHaptics] { haptics.toggle() }
+            MusicManager.shared.previousTrack()
+            skipLeftTriggered = true
+
+            // 专辑封面向左短暂位移再回弹
+            withAnimation(.easeOut(duration: 0.09)) { leftSkipOffset = -skipItemWidthPulse }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(90))
+                withAnimation(animationSpring) { leftSkipOffset = 0 }
+            }
+
+            // 闭合状态下，notch 横向拉伸脉冲
+            if vm.notchState == .closed {
+                chinPulseSide = -1
+                withAnimation(.easeOut(duration: 0.09)) { chinPulseWidth = skipNotchWidthPulse }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(90))
+                    withAnimation(animationSpring) { chinPulseWidth = 0 }
+                    chinPulseSide = 0
+                }
+            }
+        }
+    }
+
+    private func handleRightGesture(translation: CGFloat, phase: NSEvent.Phase) {
+        guard !vm.isHoveringCalendar && musicManager.isPlaying else { return }
+
+        if phase == .began {
+            skipRightTriggered = false
+            return
+        }
+        if phase == .ended {
+            skipRightTriggered = false
+            return
+        }
+
+        if !skipRightTriggered && translation > Defaults[.gestureSensitivity] {
+            if Defaults[.enableHaptics] { haptics.toggle() }
+            MusicManager.shared.nextTrack()
+            skipRightTriggered = true
+
+            withAnimation(.easeOut(duration: 0.09)) { rightSkipOffset = skipItemWidthPulse }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(90))
+                withAnimation(animationSpring) { rightSkipOffset = 0 }
+            }
+
+            if vm.notchState == .closed {
+                chinPulseSide = 1
+                withAnimation(.easeOut(duration: 0.09)) { chinPulseWidth = skipNotchWidthPulse }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(90))
+                    withAnimation(animationSpring) { chinPulseWidth = 0 }
+                    chinPulseSide = 0
+                }
             }
         }
     }
