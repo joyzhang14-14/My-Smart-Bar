@@ -162,6 +162,9 @@ extension Defaults.Keys {
         "extendedLyricsAlignment",
         default: .center
     )
+    // 全局歌词时间偏移（秒）。+ 表示 LRC 提前 → 把显示推迟（lookup = elapsed - offset）。
+    // 用于手工对齐 NetEase / lrclib 偶尔给的有偏差的同步歌词。范围 ±5s。
+    static let lyricsOffset = Key<Double>("lyricsOffset", default: 0.0)
     static let musicControlSlots = Key<[MusicControlButton]>(
         "musicControlSlots",
         default: MusicControlButton.defaultLayout

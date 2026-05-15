@@ -1225,6 +1225,7 @@ struct Appearance: View {
     @Default(.customVisualizers) var customVisualizers
     @Default(.selectedVisualizer) var selectedVisualizer
     @Default(.extendedLyricsAlignment) var extendedLyricsAlignment
+    @Default(.lyricsOffset) var lyricsOffset
 
     let icons: [String] = ["logo2"]
     @State private var selectedIcon: String = "logo2"
@@ -1266,6 +1267,22 @@ struct Appearance: View {
                     }
                 }
                 .disabled(!Defaults[.extendedLyricsShowcase])
+                HStack {
+                    Text("Lyrics offset")
+                    Spacer(minLength: 16)
+                    Text("\(lyricsOffset >= 0 ? "+" : "")\(lyricsOffset, specifier: "%.1f")s")
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .frame(width: 50, alignment: .trailing)
+                    Slider(value: $lyricsOffset, in: -5...5, step: 0.1)
+                        .frame(maxWidth: 200)
+                    Button {
+                        lyricsOffset = 0
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.borderless)
+                }
                 Picker("Slider color", selection: $sliderColor) {
                     ForEach(SliderColorEnum.allCases, id: \.self) { option in
                         Text(option.rawValue)

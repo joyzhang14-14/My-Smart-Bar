@@ -164,7 +164,9 @@ struct MusicControlsView: View {
                     let line: String = {
                         if musicManager.isFetchingLyrics { return "Loading lyrics…" }
                         if !musicManager.syncedLyrics.isEmpty {
-                            return musicManager.lyricLine(at: currentElapsed)
+                            // 用户在 Settings 里手动校准的偏移：+ = LRC 提前 → 推迟显示 → 查更早的时间点
+                            let lookup = currentElapsed - Defaults[.lyricsOffset]
+                            return musicManager.lyricLine(at: lookup)
                         }
                         let trimmed = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
                         return trimmed.isEmpty ? "No lyrics found" : trimmed.replacingOccurrences(of: "\n", with: " ")
