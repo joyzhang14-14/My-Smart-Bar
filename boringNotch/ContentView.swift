@@ -759,7 +759,7 @@ struct ContentView: View {
         // 单次手势内只触发一次切歌。.changed 阶段累计达阈值即触发。
         if !skipLeftTriggered && translation > Defaults[.gestureSensitivity] {
             if Defaults[.enableHaptics] { haptics.toggle() }
-            MusicManager.shared.previousTrack()
+            MusicManager.shared.nextTrack()
             skipLeftTriggered = true
 
             // 专辑封面向左短暂位移再回弹
@@ -804,7 +804,7 @@ struct ContentView: View {
 
         if !skipRightTriggered && translation > Defaults[.gestureSensitivity] {
             if Defaults[.enableHaptics] { haptics.toggle() }
-            MusicManager.shared.nextTrack()
+            MusicManager.shared.previousTrack()
             skipRightTriggered = true
 
             withAnimation(.easeOut(duration: 0.09)) { rightSkipOffset = skipItemWidthPulse }
