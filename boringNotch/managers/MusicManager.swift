@@ -473,8 +473,18 @@ class MusicManager: ObservableObject {
             return
         }
 
+        // 3) Fallback：QQ 音乐（无加密、JSON 包参数 + Referer 头）。
+        if let result = await QQMusicLyricsClient.fetchLyrics(
+            title: cleanTitle,
+            artist: cleanArtist,
+            durationSeconds: self.songDuration
+        ) {
+            applyLyricsResult(plain: result.plain, synced: result.synced)
+            return
+        }
+
         // 全部失败：清空。
-        NSLog("[Lyrics] no lyrics found for \"\(cleanTitle)\" - \"\(cleanArtist)\" (lrclib + netease both empty/error)")
+        NSLog("[Lyrics] no lyrics found for \"\(cleanTitle)\" - \"\(cleanArtist)\" (lrclib + netease + qq all empty/error)")
         self.currentLyrics = ""
         self.syncedLyrics = []
         self.isFetchingLyrics = false
