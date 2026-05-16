@@ -315,7 +315,9 @@ struct ContentView: View {
 
     @ViewBuilder
     func NotchLayout() -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // 闭合时 spacing=0：让 ExtendedLyricsBar 折叠到 0pt 高度时不留 ~8pt 系统间距。
+        // 展开时回到系统默认间距：保留 BoringHeader 与 NotchHomeView/ShelfView 之间的呼吸空间。
+        VStack(alignment: .leading, spacing: vm.notchState == .open ? nil : 0) {
             VStack(alignment: .leading) {
                 if coordinator.helloAnimationRunning {
                     Spacer()
