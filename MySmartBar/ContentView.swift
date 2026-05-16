@@ -939,8 +939,8 @@ struct ExtendedLyricsBarBody: View {
         .frame(width: width, height: currentLine.isEmpty ? 0 : height, alignment: .center)
         .clipped()
         .opacity(currentLine.isEmpty ? 0 : 1)
-        .animation(.easeOut(duration: 0.25), value: currentLine)
-        .animation(.easeOut(duration: 0.25), value: currentLine.isEmpty)
+        .animation(.spring, value: currentLine)
+        .animation(.spring, value: currentLine.isEmpty)
         .allowsHitTesting(false)
         .onAppear { recompute() }
         .onReceive(refreshTimer) { _ in recompute() }
