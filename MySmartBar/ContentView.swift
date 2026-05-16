@@ -62,6 +62,7 @@ struct ContentView: View {
     @Default(.showNotHumanFace) var showNotHumanFace
 
     @Default(.extendedLyricsShowcase) var extendedLyricsShowcase
+    @State private var extendedBarHasContent: Bool = false
     @Default(.extendedLyricsAlignment) var extendedLyricsAlignment
 
     @Default(.swipeDirection) var swipeDirection
@@ -597,7 +598,8 @@ struct ContentView: View {
         ExtendedLyricsBarBody(
             width: width,
             height: height,
-            musicManager: musicManager
+            musicManager: musicManager,
+            hasContent: $extendedBarHasContent
         )
     }
 
@@ -891,6 +893,7 @@ struct ExtendedLyricsBarBody: View {
     let width: CGFloat
     let height: CGFloat
     @ObservedObject var musicManager: MusicManager
+    @Binding var hasContent: Bool
     @Default(.extendedLyricsAlignment) private var alignmentMode
     @Default(.showcaseShowLyrics) private var showcaseShowLyrics
     @Default(.showcaseShowMusicInfo) private var showcaseShowMusicInfo
@@ -931,9 +934,11 @@ struct ExtendedLyricsBarBody: View {
                 ))
             }
         }
-        .frame(width: width, height: height, alignment: .center)
+        .frame(width: width, height: currentLine.isEmpty ? 0 : height, alignment: .center)
         .clipped()
+        .opacity(currentLine.isEmpty ? 0 : 1)
         .animation(.easeOut(duration: 0.25), value: currentLine)
+        .animation(.easeOut(duration: 0.25), value: currentLine.isEmpty)
         .allowsHitTesting(false)
         .onAppear { recompute() }
         .onReceive(refreshTimer) { _ in recompute() }
@@ -988,6 +993,10 @@ struct ExtendedLyricsBarBody: View {
 
         if newLine != currentLine {
             currentLine = newLine
+        }
+        let newHasContent = !newLine.isEmpty
+        if newHasContent != hasContent {
+            hasContent = newHasContent
         }
     }
 
