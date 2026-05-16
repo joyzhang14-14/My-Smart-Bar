@@ -995,12 +995,19 @@ struct ExtendedLyricsBarBody: View {
             newLine = ""
         }
 
-        if newLine != currentLine {
-            currentLine = newLine
-        }
         let newHasContent = !newLine.isEmpty
-        if newHasContent != hasContent {
-            hasContent = newHasContent
+        let lineChanged = newLine != currentLine
+        let contentChanged = newHasContent != hasContent
+        guard lineChanged || contentChanged else { return }
+
+        // 显式 withAnimation 而不是只靠 .animation(value:)：
+        // - bar 刚被插入到 view tree 时，紧接着的 state 变化容易被 SwiftUI 跳过动画
+        // - withAnimation 强制 transaction 进入 spring 动画上下文，frame 高度 ternary、
+        //   opacity ternary、内部 text 的 .transition 都跟着一起动起来
+        // 用项目主线的 interactiveSpring 0.38/0.8，与开/关刘海手感一致。
+        withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0)) {
+            if lineChanged { currentLine = newLine }
+            if contentChanged { hasContent = newHasContent }
         }
     }
 
