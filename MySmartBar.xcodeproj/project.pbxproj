@@ -175,7 +175,7 @@
 		};
 		B1ECFA062C6FE58A002ACD87 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 12;
+			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
