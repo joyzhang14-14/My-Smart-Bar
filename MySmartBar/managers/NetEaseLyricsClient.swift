@@ -114,8 +114,18 @@ enum NetEaseLyricsClient {
             .filter { !$0.isEmpty }
 
         var best: (id: Int, score: Int, name: String, artists: String)? = nil
+        var rejectedForDuration = 0
         for song in songs {
             guard let id = song["id"] as? Int else { continue }
+            // 时长硬过滤：dt(毫秒) 转秒后与 songDuration 偏差 >3s 直接弃用。
+            // durationSeconds == 0 时跳过；候选缺 dt 字段时也跳过（保守不误杀）。
+            if durationSeconds > 0, let dt = song["dt"] as? Int {
+                let candidateSec = Double(dt) / 1000.0
+                if abs(candidateSec - durationSeconds) > 3 {
+                    rejectedForDuration += 1
+                    continue
+                }
+            }
             let songName = (song["name"] as? String) ?? ""
             // 歌名的所有可比较变体：主名 + tns（翻译/别名，比如英文版）+ alia（备选名，比如带 (Live) 后缀的）
             let songNameVariants: [String] = {
@@ -177,6 +187,8 @@ enum NetEaseLyricsClient {
         }
         if let best = best {
             NSLog("[Lyrics][NetEase native] rejected best candidate (score=\(best.score) < 10) — \"\(best.name)\" by \"\(best.artists)\"")
+        } else if rejectedForDuration > 0 {
+            NSLog("[Lyrics][NetEase native] rejected all \(rejectedForDuration) candidates by ±3s duration filter")
         }
         return nil
     }

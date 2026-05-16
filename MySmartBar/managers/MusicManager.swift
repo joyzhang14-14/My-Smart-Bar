@@ -469,7 +469,7 @@ class MusicManager: ObservableObject {
         // 匹配的那个 task 才能写入 state；落后的 task 一律丢弃。
 
         // 1) 主源：LRCLIB（无需鉴权、稳定）。
-        if let result = await fetchFromLRCLIB(title: cleanTitle, artist: cleanArtist),
+        if let result = await fetchFromLRCLIB(title: cleanTitle, artist: cleanArtist, durationSeconds: self.songDuration),
            applyLyricsResult(plain: result.plain, synced: result.synced, expectedKey: expectedKey) {
             return
         }
@@ -526,7 +526,7 @@ class MusicManager: ObservableObject {
 
     // MARK: - Lyrics providers
 
-    private func fetchFromLRCLIB(title: String, artist: String) async -> (plain: String, synced: String)? {
+    private func fetchFromLRCLIB(title: String, artist: String, durationSeconds: Double) async -> (plain: String, synced: String)? {
         guard let encodedTitle = title.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let encodedArtist = artist.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
             return nil
@@ -539,10 +539,26 @@ class MusicManager: ObservableObject {
                 NSLog("[Lyrics] LRCLIB non-200: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 return nil
             }
-            guard let arr = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-                  let first = arr.first else {
+            guard let arr = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 return nil
             }
+            // 时长硬过滤：候选 duration 与当前播放 songDuration 偏差 >3s 直接弃用。
+            // 防的是同名不同版本（remix / live / 母带版本）时长差几十秒导致整段时间线错位。
+            // 当 durationSeconds == 0（还没拿到时长）跳过这层过滤。
+            let candidates: [[String: Any]]
+            if durationSeconds > 0 {
+                candidates = arr.filter { item in
+                    guard let d = item["duration"] as? Double else { return false }
+                    return abs(d - durationSeconds) <= 3.0
+                }
+                if candidates.isEmpty {
+                    NSLog("[Lyrics] LRCLIB rejected all \(arr.count) candidates: no duration within ±3s of \(durationSeconds)s")
+                    return nil
+                }
+            } else {
+                candidates = arr
+            }
+            guard let first = candidates.first else { return nil }
             let plain = (first["plainLyrics"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let synced = (first["syncedLyrics"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if plain.isEmpty && synced.isEmpty { return nil }
