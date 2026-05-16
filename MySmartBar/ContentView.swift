@@ -592,8 +592,8 @@ struct ContentView: View {
     func ExtendedLyricsBar() -> some View {
         // 宽度 = 播放音乐时 chin 延展后的宽度（比纯刘海宽一点点），
         // 高度 = 刘海本身高度。
-        let width = computedChinWidth 
-        let height = vm.closedNotchSize.height - 18
+        let width = computedChinWidth
+        let height = vm.closedNotchSize.height - 15
 
         // 用独立 struct 才能持有 @State + Timer.publish。
         // 不用 TimelineView 是因为它的高频重算会让外层 mainLayout 被撑大（已确认 root cause）。
