@@ -110,14 +110,22 @@ struct ContentView: View {
         return chinWidth
     }
 
-    // 闭合 notch 下方"常驻歌词条"是否应该显示。
-    // 仅当：开关开 + notch 闭合 + live activity 可显示 + 正在播放 + 当前确有歌词
+    // 闭合 notch 下方"常驻showcase"是否应该显示。
+    // master 开 + notch 闭合 + live activity 可显示 + 正在播放，
+    // 且至少有一项内容可以渲染（歌词 或 歌名-歌手）。
     private var shouldShowExtendedLyrics: Bool {
         guard extendedLyricsShowcase else { return false }
         guard vm.notchState == .closed else { return false }
         guard coordinator.musicLiveActivityEnabled else { return false }
         guard !vm.hideOnClosed else { return false }
         guard musicManager.isPlaying else { return false }
+
+        let showLyrics = Defaults[.showcaseShowLyrics]
+        let showMusicInfo = Defaults[.showcaseShowMusicInfo]
+        if !showLyrics && !showMusicInfo { return false }
+        // music info 开了就一定有 title-artist 可渲染（前提：歌名非空，下方 bar 自己处理空标题）
+        if showMusicInfo { return true }
+        // 只开 lyrics：只有真有歌词时才显示
         if !musicManager.syncedLyrics.isEmpty { return true }
         let trimmed = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
         return !trimmed.isEmpty
@@ -884,6 +892,8 @@ struct ExtendedLyricsBarBody: View {
     let height: CGFloat
     @ObservedObject var musicManager: MusicManager
     @Default(.extendedLyricsAlignment) private var alignmentMode
+    @Default(.showcaseShowLyrics) private var showcaseShowLyrics
+    @Default(.showcaseShowMusicInfo) private var showcaseShowMusicInfo
 
     @State private var currentLine: String = ""
 
@@ -930,6 +940,8 @@ struct ExtendedLyricsBarBody: View {
         .onChange(of: musicManager.currentLyrics) { _, _ in recompute() }
         .onChange(of: musicManager.syncedLyrics.count) { _, _ in recompute() }
         .onChange(of: musicManager.isPlaying) { _, _ in recompute() }
+        .onChange(of: showcaseShowLyrics) { _, _ in recompute() }
+        .onChange(of: showcaseShowMusicInfo) { _, _ in recompute() }
     }
 
     private func recompute() {
@@ -943,27 +955,37 @@ struct ExtendedLyricsBarBody: View {
         } else {
             elapsed = musicManager.elapsedTime
         }
-        let newLine: String
-        if !musicManager.syncedLyrics.isEmpty {
-            // 用户在 Settings 里手动校准的偏移：+ = LRC 提前 → 推迟显示 → 查更早的时间点
-            let line = musicManager.lyricLine(at: elapsed - Defaults[.lyricsOffset])
-            // lyricLine 返回 "" 有两种情况：(1) pre-roll 期 (2) syncedLyricsKey 与当前歌不匹配（double-check）。
-            // 仿 My-Orphies：只在 (1) 时把空白替换成"歌名 - 歌手"作为占位；(2) 保持空白避免显示错歌。
-            if line.isEmpty {
-                let currentKey = "\(musicManager.songTitle)|\(musicManager.artistName)"
-                if musicManager.syncedLyricsKey == currentKey {
-                    newLine = trackArtistFallback
-                } else {
-                    newLine = ""
+
+        // 先尝试拿一个"歌词行"（仅在 Enable lyrics 开启时）。
+        // - syncedLyrics 有，且当前时间命中某行 → 用该行
+        // - 否则视为"没歌词行可显示"
+        var lyricLine = ""
+        if showcaseShowLyrics {
+            if !musicManager.syncedLyrics.isEmpty {
+                let line = musicManager.lyricLine(at: elapsed - Defaults[.lyricsOffset])
+                if !line.isEmpty {
+                    lyricLine = line
                 }
+                // line 为空：pre-roll 或 syncedLyricsKey 不匹配 → 下面交给 music info 兜底
             } else {
-                newLine = line
+                let unsynced = musicManager.currentLyrics
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: "\n", with: " ")
+                if !unsynced.isEmpty {
+                    lyricLine = unsynced
+                }
             }
-        } else {
-            newLine = musicManager.currentLyrics
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: "\n", with: " ")
         }
+
+        let newLine: String
+        if !lyricLine.isEmpty {
+            newLine = lyricLine
+        } else if showcaseShowMusicInfo {
+            newLine = trackArtistFallback
+        } else {
+            newLine = ""
+        }
+
         if newLine != currentLine {
             currentLine = newLine
         }

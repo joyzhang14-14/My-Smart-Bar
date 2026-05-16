@@ -1197,12 +1197,30 @@ struct Appearance: View {
                 Defaults.Toggle(key: .lightingEffect) {
                     Text("Enable blur effect behind album art")
                 }
+                Picker("Slider color", selection: $sliderColor) {
+                    ForEach(SliderColorEnum.allCases, id: \.self) { option in
+                        Text(option.rawValue)
+                    }
+                }
+            } header: {
+                Text("Media")
+            }
+
+            Section {
                 Defaults.Toggle(key: .extendedLyricsShowcase) {
                     HStack {
-                        Text("Enable extended lyrics showcase")
+                        Text("Enable showcase")
                         customBadge(text: "Beta")
                     }
                 }
+                Defaults.Toggle(key: .showcaseShowLyrics) {
+                    Text("Enable lyrics")
+                }
+                .disabled(!Defaults[.extendedLyricsShowcase])
+                Defaults.Toggle(key: .showcaseShowMusicInfo) {
+                    Text("Enable music info")
+                }
+                .disabled(!Defaults[.extendedLyricsShowcase])
                 Picker("Lyrics alignment", selection: $extendedLyricsAlignment) {
                     ForEach(LyricsAlignmentMode.allCases) { mode in
                         Text(mode.rawValue).tag(mode)
@@ -1225,13 +1243,9 @@ struct Appearance: View {
                     }
                     .buttonStyle(.borderless)
                 }
-                Picker("Slider color", selection: $sliderColor) {
-                    ForEach(SliderColorEnum.allCases, id: \.self) { option in
-                        Text(option.rawValue)
-                    }
-                }
+                .disabled(!Defaults[.extendedLyricsShowcase])
             } header: {
-                Text("Media")
+                Text("Extended showcase")
             }
 
             Section {

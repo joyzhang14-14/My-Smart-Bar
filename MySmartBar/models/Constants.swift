@@ -155,6 +155,9 @@ extension Defaults.Keys {
     static let showShuffleAndRepeat = Key<Bool>("showShuffleAndRepeat", default: false)
     static let enableLyrics = Key<Bool>("enableLyrics", default: false)
     static let extendedLyricsShowcase = Key<Bool>("extendedLyricsShowcase", default: false)
+    // Extended showcase sub-toggles: control what the bar displays when master is on.
+    static let showcaseShowLyrics = Key<Bool>("showcaseShowLyrics", default: true)
+    static let showcaseShowMusicInfo = Key<Bool>("showcaseShowMusicInfo", default: true)
     static let extendedLyricsAlignment = Key<LyricsAlignmentMode>(
         "extendedLyricsAlignment",
         default: .center
