@@ -8437,9 +8437,6 @@
         }
       }
     },
-    "Enable extended lyrics showcase" : {
-
-    },
     "Enable gestures" : {
       "localizations" : {
         "ar" : {
@@ -8740,6 +8737,12 @@
         }
       }
     },
+    "Enable lyrics" : {
+
+    },
+    "Enable music info" : {
+
+    },
     "Enable shelf" : {
       "localizations" : {
         "ar" : {
@@ -8839,6 +8842,9 @@
           }
         }
       }
+    },
+    "Enable showcase" : {
+
     },
     "Enable window shadow" : {
       "localizations" : {
@@ -9339,6 +9345,9 @@
           }
         }
       }
+    },
+    "Extended showcase" : {
+
     },
     "Extensions" : {
       "extractionState" : "stale",
