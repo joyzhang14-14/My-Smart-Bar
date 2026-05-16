@@ -1070,9 +1070,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = MySmartBarXPCHelper/MySmartBarXPCHelper.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = MySmartBarDev;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = MySmartBarDev;
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 10103;
 				DEVELOPMENT_TEAM = "";
@@ -1249,9 +1249,9 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = MySmartBar/MySmartBar.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = MySmartBarDev;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = MySmartBarDev;
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 10103;
 				DEAD_CODE_STRIPPING = YES;
