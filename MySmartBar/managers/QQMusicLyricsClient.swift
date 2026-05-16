@@ -83,10 +83,11 @@ enum QQMusicLyricsClient {
         var rejectedForDuration = 0
         for song in songs {
             guard let mid = song["songmid"] as? String, !mid.isEmpty else { continue }
-            // 时长硬过滤：interval 与 songDuration 偏差 >3s 整条候选直接弃用。
+            // 时长硬过滤：interval 与 songDuration 偏差 >0.5s 整条候选直接弃用。
+            // 严格模式——只接受 duration 完全吻合的候选。
             // durationSeconds == 0 时跳过过滤；候选缺 interval 字段时也跳过（保守不误杀）。
             if durationSeconds > 0, let interval = song["interval"] as? Int {
-                if abs(Double(interval) - durationSeconds) > 3 {
+                if abs(Double(interval) - durationSeconds) > 0.5 {
                     rejectedForDuration += 1
                     continue
                 }
@@ -128,7 +129,7 @@ enum QQMusicLyricsClient {
         if let best = best {
             NSLog("[Lyrics][QQ] rejected best candidate (score=\(best.score) < 10) — \"\(best.name)\" by \"\(best.artists)\"")
         } else if rejectedForDuration > 0 {
-            NSLog("[Lyrics][QQ] rejected all \(rejectedForDuration) candidates by ±3s duration filter")
+            NSLog("[Lyrics][QQ] rejected all \(rejectedForDuration) candidates by ±0.5s duration filter")
         }
         return nil
     }

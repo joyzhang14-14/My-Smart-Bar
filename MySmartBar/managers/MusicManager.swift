@@ -542,17 +542,18 @@ class MusicManager: ObservableObject {
             guard let arr = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 return nil
             }
-            // 时长硬过滤：候选 duration 与当前播放 songDuration 偏差 >3s 直接弃用。
-            // 防的是同名不同版本（remix / live / 母带版本）时长差几十秒导致整段时间线错位。
+            // 时长硬过滤：候选 duration 与当前播放 songDuration 偏差 >0.5s 直接弃用。
+            // 严格模式——只接受 duration 完全吻合（在浮点 / 秒级精度内）的歌词源，
+            // 避免同名不同版本（remix / live / 母带版本）的歌词时间线错位。
             // 当 durationSeconds == 0（还没拿到时长）跳过这层过滤。
             let candidates: [[String: Any]]
             if durationSeconds > 0 {
                 candidates = arr.filter { item in
                     guard let d = item["duration"] as? Double else { return false }
-                    return abs(d - durationSeconds) <= 3.0
+                    return abs(d - durationSeconds) <= 0.5
                 }
                 if candidates.isEmpty {
-                    NSLog("[Lyrics] LRCLIB rejected all \(arr.count) candidates: no duration within ±3s of \(durationSeconds)s")
+                    NSLog("[Lyrics] LRCLIB rejected all \(arr.count) candidates: no duration within ±0.5s of \(durationSeconds)s")
                     return nil
                 }
             } else {
