@@ -318,7 +318,7 @@ struct ContentView: View {
         // 闭合时 spacing=0：bar 折叠到 0pt 时 VStack 不再多留 ~8pt 系统间距，
         // 避免"找到歌词就鼓起来"的视觉。配合下方 bar 的 offset=0 不会再覆盖到内容上。
         // 展开时回到 nil（系统默认）：保留 BoringHeader 与 NotchHomeView/ShelfView 之间的呼吸空间。
-        VStack(alignment: .leading, spacing: vm.notchState == .open ? nil : 0) {
+        VStack(alignment: .center, spacing: vm.notchState == .open ? nil : 0) {
             VStack(alignment: .leading) {
                 if coordinator.helloAnimationRunning {
                     Spacer()
@@ -899,10 +899,25 @@ struct ExtendedLyricsBarBody: View {
     @Default(.extendedLyricsAlignment) private var alignmentMode
     @Default(.showcaseShowLyrics) private var showcaseShowLyrics
     @Default(.showcaseShowMusicInfo) private var showcaseShowMusicInfo
+    @Default(.showcaseFitToLyricsWidth) private var fitToLyricsWidth
 
     @State private var currentLine: String = ""
 
     private let refreshTimer = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
+
+    // 当 fit-to-lyrics-width 开启且为 center 对齐时，按当前文本实际宽度撑开 bar；
+    // 永远不低于传入的 width（chin 宽度），只能往大里走。leftMarquee 模式下保持 chin 宽。
+    // 左右各加 6pt 视觉留白，避免文字贴边。
+    private var effectiveWidth: CGFloat {
+        guard fitToLyricsWidth, alignmentMode == .center, !currentLine.isEmpty else {
+            return width
+        }
+        let font = NSFont.preferredFont(forTextStyle: .subheadline)
+        let measured = (currentLine as NSString)
+            .size(withAttributes: [.font: font])
+            .width
+        return max(width, ceil(measured) + 12)
+    }
 
     var body: some View {
         ZStack(alignment: .center) {
@@ -926,7 +941,7 @@ struct ExtendedLyricsBarBody: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                             .multilineTextAlignment(.center)
-                            .frame(maxWidth: width, alignment: .center)
+                            .frame(maxWidth: effectiveWidth, alignment: .center)
                     }
                 }
                 .id(currentLine)
@@ -936,13 +951,14 @@ struct ExtendedLyricsBarBody: View {
                 ))
             }
         }
-        .frame(width: width, height: currentLine.isEmpty ? 0 : height, alignment: .center)
+        .frame(width: effectiveWidth, height: currentLine.isEmpty ? 0 : height, alignment: .center)
         .clipped()
         .opacity(currentLine.isEmpty ? 0 : 1)
         // 对齐 ContentView 主线 animationSpring（interactiveSpring 0.38/0.8）：
         // 跟开/关刘海、chin pulse、手势回弹同一套手感。
         .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0), value: currentLine)
         .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0), value: currentLine.isEmpty)
+        .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0), value: effectiveWidth)
         .allowsHitTesting(false)
         .onAppear { recompute() }
         .onReceive(refreshTimer) { _ in recompute() }

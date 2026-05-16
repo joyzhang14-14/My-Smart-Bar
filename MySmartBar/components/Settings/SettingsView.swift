@@ -1166,6 +1166,7 @@ struct Appearance: View {
     @Default(.useMusicVisualizer) var useMusicVisualizer
     @Default(.customVisualizers) var customVisualizers
     @Default(.selectedVisualizer) var selectedVisualizer
+    @Default(.extendedLyricsShowcase) var extendedLyricsShowcase
     @Default(.extendedLyricsAlignment) var extendedLyricsAlignment
     @Default(.lyricsOffset) var lyricsOffset
 
@@ -1213,40 +1214,45 @@ struct Appearance: View {
                         customBadge(text: "Beta")
                     }
                 }
-                Defaults.Toggle(key: .showcaseShowLyrics) {
-                    Text("Enable lyrics")
-                }
-                .disabled(!Defaults[.extendedLyricsShowcase])
-                Defaults.Toggle(key: .showcaseShowMusicInfo) {
-                    Text("Enable music info")
-                }
-                .disabled(!Defaults[.extendedLyricsShowcase])
-                Picker("Lyrics alignment", selection: $extendedLyricsAlignment) {
-                    ForEach(LyricsAlignmentMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
+                if extendedLyricsShowcase {
+                    Defaults.Toggle(key: .showcaseShowLyrics) {
+                        Text("Enable lyrics")
+                    }
+                    Defaults.Toggle(key: .showcaseShowMusicInfo) {
+                        Text("Enable music info")
+                    }
+                    Picker("Lyrics alignment", selection: $extendedLyricsAlignment) {
+                        ForEach(LyricsAlignmentMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    if extendedLyricsAlignment == .center {
+                        Defaults.Toggle(key: .showcaseFitToLyricsWidth) {
+                            Text("Fit to lyrics width")
+                        }
+                    }
+                    HStack {
+                        Text("Lyrics offset")
+                        Spacer(minLength: 16)
+                        Text("\(lyricsOffset >= 0 ? "+" : "")\(lyricsOffset, specifier: "%.1f")s")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                            .frame(width: 50, alignment: .trailing)
+                        Slider(value: $lyricsOffset, in: -5...5, step: 0.1)
+                            .frame(maxWidth: 200)
+                        Button {
+                            lyricsOffset = 0
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(.borderless)
                     }
                 }
-                .disabled(!Defaults[.extendedLyricsShowcase])
-                HStack {
-                    Text("Lyrics offset")
-                    Spacer(minLength: 16)
-                    Text("\(lyricsOffset >= 0 ? "+" : "")\(lyricsOffset, specifier: "%.1f")s")
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .frame(width: 50, alignment: .trailing)
-                    Slider(value: $lyricsOffset, in: -5...5, step: 0.1)
-                        .frame(maxWidth: 200)
-                    Button {
-                        lyricsOffset = 0
-                    } label: {
-                        Image(systemName: "arrow.counterclockwise")
-                    }
-                    .buttonStyle(.borderless)
-                }
-                .disabled(!Defaults[.extendedLyricsShowcase])
             } header: {
                 Text("Extended showcase")
             }
+            .animation(.default, value: extendedLyricsShowcase)
+            .animation(.default, value: extendedLyricsAlignment)
 
             Section {
                 Toggle(
