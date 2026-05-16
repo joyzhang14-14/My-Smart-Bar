@@ -939,8 +939,10 @@ struct ExtendedLyricsBarBody: View {
         .frame(width: width, height: currentLine.isEmpty ? 0 : height, alignment: .center)
         .clipped()
         .opacity(currentLine.isEmpty ? 0 : 1)
-        .animation(.spring, value: currentLine)
-        .animation(.spring, value: currentLine.isEmpty)
+        // 对齐 ContentView 主线 animationSpring（interactiveSpring 0.38/0.8）：
+        // 跟开/关刘海、chin pulse、手势回弹同一套手感。
+        .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0), value: currentLine)
+        .animation(.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0), value: currentLine.isEmpty)
         .allowsHitTesting(false)
         .onAppear { recompute() }
         .onReceive(refreshTimer) { _ in recompute() }
