@@ -6,6 +6,16 @@
         <description>Updates for My Smart Bar.</description>
         <language>en</language>
         <item>
+            <title>1.1.6</title>
+            <pubDate>Sun, 17 May 2026 03:00:57 -0400</pubDate>
+            <link>https://github.com/joyzhang14-14/My-Smart-Bar/releases</link>
+            <sparkle:version>10106</sparkle:version>
+            <sparkle:shortVersionString>1.1.6</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/joyzhang14-14/My-Smart-Bar/releases/download/v1.1.6/MySmartBar-1.1.6.zip" length="9841781" type="application/octet-stream" sparkle:edSignature="xrxY5nulwIx1ckwz1tvjS0alFtXencwOUNtwBDrXm1w9juMAlwa/I4TQQ1Xeekj/PuDdUpm2SdgEcIFtoj8zBw=="/>
+        </item>
+        <item>
             <title>1.1.5</title>
             <pubDate>Sat, 16 May 2026 14:34:50 -0400</pubDate>
             <link>https://github.com/joyzhang14-14/My-Smart-Bar/releases</link>
@@ -24,16 +34,6 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure url="https://github.com/joyzhang14-14/My-Smart-Bar/releases/download/v1.1.4/MySmartBar-1.1.4.zip" length="9838704" type="application/octet-stream" sparkle:edSignature="bYhOp9i+qPG7niTvHMe2Uh6gaADiBpUQ46P+nqjjlauAfZq2ZgIdudpW1rro1wlabTWqg8qjy4kocD5tlgLiAg=="/>
-        </item>
-        <item>
-            <title>1.1.3</title>
-            <pubDate>Sat, 16 May 2026 03:42:08 -0400</pubDate>
-            <link>https://github.com/joyzhang14-14/My-Smart-Bar/releases</link>
-            <sparkle:version>10103</sparkle:version>
-            <sparkle:shortVersionString>1.1.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/joyzhang14-14/My-Smart-Bar/releases/download/v1.1.3/MySmartBar-1.1.3.zip" length="9838668" type="application/octet-stream" sparkle:edSignature="L8OPGhoGNBYGqEYkIcBOePjMJFZM57qZwLU00nCLtJMk2kFbCne2i4AOlR/haMgrkyKXhoeLtvxms3QdaV2zCQ=="/>
         </item>
     </channel>
 </rss>
